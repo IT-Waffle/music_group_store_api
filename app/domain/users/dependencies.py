@@ -35,6 +35,8 @@ async def get_current_user(
 
     if user is None:
         raise credentials_exception
+    if not user.is_active:
+        raise HTTPException(status_code=400, detail="Inactive user")
     return user
 
 
@@ -44,4 +46,12 @@ async def get_admin(current_user: User = Depends(get_current_user)) -> User:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have enough privileges",
         )
+    return current_user
+
+
+async def get_moderator(current_user: User = Depends(get_current_user)) -> User:
+
+    allowed_roles = {UserRole.ADMIN, UserRole.MODERATOR}
+    if current_user.role not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Not enough privileges")
     return current_user
