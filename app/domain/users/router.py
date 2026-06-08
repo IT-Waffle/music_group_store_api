@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.infrastructure.session import get_db
-from . import schemas, service, repository
+from . import schemas, service, repository, models, dependencies
 from sqlalchemy.exc import IntegrityError
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -19,3 +19,10 @@ async def create_user(
         return new_user
     except IntegrityError:
         raise HTTPException(status_code=409, detail="Email is already registered")
+
+
+@router.get("/me", response_model=schemas.UserResponse)
+async def read_users_me(
+    current_user: models.User = Depends(dependencies.get_current_user),
+):
+    return current_user

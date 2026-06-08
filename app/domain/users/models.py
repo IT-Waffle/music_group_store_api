@@ -11,7 +11,6 @@ class UserRole(str, enum.Enum):
 
     ADMIN = "admin"  # the internal god
     MODERATOR = "moderator"  # can manage content but not users
-    USER = "user"  # regular user with limited permissions
 
 
 class User(Base):

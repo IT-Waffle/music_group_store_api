@@ -1,6 +1,6 @@
 from .schemas import UserCreate
 from .repository import UserRepository
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, verify_password
 
 
 class UserService:
@@ -17,3 +17,14 @@ class UserService:
         data_dict["hashed_password"] = hashed_password
 
         return await self.repository.create(data_dict)
+
+    async def authenticate_user(self, email: str, password: str):
+        user = await self.repository.get_by_email(email)
+
+        if not user:
+            return None
+
+        if not verify_password(password, user.hashed_password):
+            return None
+
+        return user
