@@ -1,5 +1,5 @@
 import uuid
-
+from typing import Sequence
 from sqlalchemy import select
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,3 +27,17 @@ class UserRepository:
     async def get_by_id(self, user_id: uuid.UUID) -> User | None:
         result = await self.session.execute(select(User).where(User.id == user_id))
         return result.scalars().first()
+    
+    async def get_all(self, limit: int = 100, offset: int = 0) -> Sequence[User]:
+        result = await self.session.execute(select(User).limit(limit).offset(offset))
+        return result.scalars().all()
+    
+    async def update(self, user: User, update_data: dict[str, Any]) -> User:
+        for key, value in update_data.items():
+            setattr(user, key, value)
+
+        self.session.add(user)
+        await self.session.commit()
+        await self.session.refresh(user)
+
+        return user
