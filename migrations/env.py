@@ -8,9 +8,11 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 from app.infrastructure.base import Base
-from app.domain.users.models import (
-    User,
-)  # Import your models here to include them in migrations
+from app.domain.users.models import User
+from app.domain.catalog.models import Category, Product
+from app.domain.localization.models import Translation
+
+# Import your models here to include them in migrations
 from app.core.config import settings
 
 # this is the Alembic Config object, which provides
