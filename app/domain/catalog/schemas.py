@@ -56,6 +56,7 @@ class ProductBase(BaseModel):
     category_id: uuid.UUID = Field(..., description="Final subcategory ID")
     image_url: str | None = Field(None, max_length=1024, description="link to image")
     is_published: bool = Field(False, description="Product publication flag")
+    in_stock: bool = Field(True, description="Is product in stock")
 
 
 class ProductCreate(ProductBase):
@@ -79,3 +80,19 @@ class ProductResponse(ProductBase):
     description: str
 
     model_config = ConfigDict(from_attributes=True)
+
+class ProductUpdate(BaseModel):
+    category_id: uuid.UUID | None = Field(None, description="Change category ID")
+    image_url: str | None = Field(None, max_length=1024, description="Change image link") 
+    is_published: bool | None = Field(None, description="Publish/Unpublish product")
+    in_stock: bool | None = Field(None, description="Change stock status")
+
+    title_en: str | None = Field(None, description="Product name in English")
+    title_lv: str | None = Field(None, description="Product name in Latvian")
+    title_ru: str | None = Field(None, description="Product name in Russian")
+
+    description_en: str | None = Field(None, description="Product description in English")
+    description_lv: str | None = Field(None, description="Product description in Latvian")
+    description_ru: str | None = Field(None, description="Product description in Russian")
+
+    model_config = ConfigDict(extra="forbid")
