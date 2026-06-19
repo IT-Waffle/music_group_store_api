@@ -12,16 +12,18 @@ class CatalogRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def upsert_translation(self, entity_type: str, entity_id: str, lang: str, key: str, value: str):
+    async def upsert_translation(
+        self, entity_type: str, entity_id: str, lang: str, key: str, value: str
+    ):
         """
         Searches for exitsting translation, if finds - update.
         If not - creates new record
         """
         stmt = select(Translation).where(
-            (Translation.entity_id == entity_id) &
-            (Translation.entity_type == entity_type)&
-            (Translation.key == key)&
-            (Translation.lang == lang)
+            (Translation.entity_id == entity_id)
+            & (Translation.entity_type == entity_type)
+            & (Translation.key == key)
+            & (Translation.lang == lang)
         )
         res = await self.session.execute(stmt)
         translation = res.scalar_one_or_none()
@@ -30,16 +32,73 @@ class CatalogRepository:
             translation.value = value
         else:
             new_trans = Translation(
-                entity_type = entity_type,
-                entity_id = entity_id,
-                lang = lang,
-                key = key,
-                value = value,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                lang=lang,
+                key=key,
+                value=value,
             )
             self.session.add(new_trans)
-    
+
     async def commit(self):
         await self.session.commit()
+
+    async def get_product_model(self, product_id: uuid.UUID) -> Product | None:
+        """
+        Helper - method to get product ORM model(without translations)
+        """
+        stmt = select(Product).where(Product.id == product_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_all_products(
+        self, lang: str, only_published: bool = True
+    ) -> list[dict[str, Any]]:
+        t_title = aliased(Translation)
+        t_desc = aliased(Translation)
+        product_id_str = cast(Product.id, String)
+
+        stmt = (
+            select(
+                Product, t_title.value.label("title"), t_desc.value.label("description")
+            )
+            .select_from(Product)
+            .outerjoin(
+                t_title,
+                (t_title.entity_id == product_id_str)
+                & (t_title.entity_type == "product")
+                & (t_title.key == "title")
+                & (t_title.lang == lang),
+            )
+            .outerjoin(
+                t_desc,
+                (t_desc.entity_id == product_id_str)
+                & (t_desc.entity_type == "product")
+                & (t_desc.key == "description")
+                & (t_desc.lang == lang),
+            )
+        )
+
+        if only_published:
+            stmt = stmt.where(Product.is_published == True)
+
+        result = await self.session.execute(stmt)
+        rows = result.all()
+
+        return [
+            {
+                "id": row.Product.id,
+                "category_id": row.Product.category_id,
+                "image_url": row.Product.image_url,
+                "is_published": row.Product.is_published,
+                "in_stock": row.Product.in_stock,
+                "created_at": row.Product.created_at,
+                "updated_at": row.Product.updated_at,
+                "title": row.title or "",
+                "description": row.description or "",
+            }
+            for row in rows
+        ]
 
     async def get_product_by_id(
         self, product_id: uuid.UUID, lang: str
@@ -53,6 +112,7 @@ class CatalogRepository:
             select(
                 Product, t_title.value.label("title"), t_desc.value.label("description")
             )
+            .select_from(Product)
             # connecting table for TITLE
             .outerjoin(
                 t_title,
@@ -85,6 +145,7 @@ class CatalogRepository:
             "category_id": product.category_id,
             "image_url": product.image_url,
             "is_published": product.is_published,
+            "in_stock": row.Product.in_stock,
             "created_at": product.created_at,
             "updated_at": product.updated_at,
             "title": row.title or "",
@@ -109,6 +170,20 @@ class CatalogRepository:
         await self.session.commit()
 
         return product.id
+
+    async def delete_product(self, product_id: uuid.UUID):
+        product_id_str = str(product_id)
+
+        stmt_trans = delete(Translation).where(
+            (Translation.entity_type == "product")
+            & (Translation.entity_id == product_id_str)
+        )
+        await self.session.execute(stmt_trans)
+
+        stmt_prod = delete(Product).where(Product.id == product_id)
+        await self.session.execute(stmt_prod)
+
+        await self.session.commit()
 
     async def get_all_categories(self, lang: str) -> list[dict[str, Any]]:
         t_title = aliased(Translation)

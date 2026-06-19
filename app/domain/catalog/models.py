@@ -25,3 +25,4 @@ class Product(Base):
     category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id"))
     image_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     is_published: Mapped[bool] = mapped_column(default=False)
+    in_stock: Mapped[bool] = mapped_column(default=True)

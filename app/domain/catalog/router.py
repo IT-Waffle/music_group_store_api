@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status, Header
+from fastapi import APIRouter, Depends, HTTPException, status, Header, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from typing import List
@@ -17,6 +17,57 @@ def get_catalog_service(
 ) -> service.CatalogService:
     repo = repository.CatalogRepository(session)
     return service.CatalogService(repo)
+
+
+@router.get("/products", response_model=List[schemas.ProductResponse])
+async def get_products(
+    accept_language: str = Header(default="en"),
+    svc: service.CatalogService = Depends(get_catalog_service),
+):
+    lang = accept_language[:2].lower()
+
+    return await svc.get_all_products(lang, only_published=True)
+
+
+# router for admin panel to see all products
+@router.get("/manage/products", response_model=List[schemas.ProductResponse])
+async def get_all_products_for_admin(
+    only_published: bool = Query(
+        default=False, description="If true - gives only published"
+    ),
+    accept_language: str = Header(default="en"),
+    svc: service.CatalogService = Depends(get_catalog_service),
+    current_user=Depends(get_moderator),
+):
+    lang = accept_language[:2].lower()
+
+    return await svc.get_all_products(lang, only_published=only_published)
+
+
+@router.patch("/products/{product_id}", response_model=schemas.ProductResponse)
+async def update_product(
+    product_id: uuid.UUID,
+    product_in: schemas.ProductUpdate,
+    accept_language: str = Header(default="en"),
+    svc: service.CatalogService = Depends(get_catalog_service),
+    current_user=Depends(get_moderator),
+):
+    lang = accept_language[:2].lower()
+    try:
+        return await svc.update_product(product_id, product_in, lang)
+    except IntegrityError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Integrity Error"
+        )
+
+
+@router.delete("/products/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_product(
+    product_id: uuid.UUID,
+    svc: service.CatalogService = Depends(get_catalog_service),
+    current_user=Depends(get_moderator),
+):
+    await svc.delete_product(product_id)
 
 
 @router.get(
