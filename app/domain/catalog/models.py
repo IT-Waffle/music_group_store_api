@@ -22,6 +22,7 @@ class Category(Base):
 class Product(Base):
     __tablename__ = "products"
 
+    slug: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id"))
     image_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     is_published: Mapped[bool] = mapped_column(default=False)
