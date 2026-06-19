@@ -53,6 +53,7 @@ class CategoryUpdate(BaseModel):
 
 
 class ProductBase(BaseModel):
+    slug: str = Field(..., max_length=255, description="Unique product slug")
     category_id: uuid.UUID = Field(..., description="Final subcategory ID")
     image_url: str | None = Field(None, max_length=1024, description="link to image")
     is_published: bool = Field(False, description="Product publication flag")
@@ -82,6 +83,7 @@ class ProductResponse(ProductBase):
     model_config = ConfigDict(from_attributes=True)
 
 class ProductUpdate(BaseModel):
+    slug: str | None = Field(None, max_length=255, description="Change unique slug")
     category_id: uuid.UUID | None = Field(None, description="Change category ID")
     image_url: str | None = Field(None, max_length=1024, description="Change image link") 
     is_published: bool | None = Field(None, description="Publish/Unpublish product")

@@ -57,7 +57,8 @@ async def update_product(
         return await svc.update_product(product_id, product_in, lang)
     except IntegrityError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Integrity Error"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Product with this slug already exists or Category ID does not exist",
         )
 
 
@@ -107,7 +108,8 @@ async def create_product(
         return await svc.create_product(product_in, lang)
     except IntegrityError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Category ID does not exist"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Product with this slug already exists or Category ID does not exist",
         )
 
 

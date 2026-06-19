@@ -18,6 +18,7 @@ class CatalogService:
 
     async def create_product(self, data: ProductCreate, lang: str):
         product = Product(
+            slug=data.slug,
             category_id=data.category_id,
             image_url=data.image_url,
             is_published=data.is_published,
@@ -84,6 +85,9 @@ class CatalogService:
                     status_code=status.HTTP_400_BAD_REQUEST, detail="Category not found"
                 )
             db_product.category_id = data.category_id
+
+        if data.slug is not None:
+            db_product.slug = data.slug
 
         if data.image_url is not None:
             db_product.image_url = data.image_url

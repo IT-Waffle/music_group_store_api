@@ -88,6 +88,7 @@ class CatalogRepository:
         return [
             {
                 "id": row.Product.id,
+                "slug": row.Product.slug,
                 "category_id": row.Product.category_id,
                 "image_url": row.Product.image_url,
                 "is_published": row.Product.is_published,
@@ -142,6 +143,7 @@ class CatalogRepository:
 
         return {
             "id": product.id,
+            "slug": product.slug,
             "category_id": product.category_id,
             "image_url": product.image_url,
             "is_published": product.is_published,
