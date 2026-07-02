@@ -50,12 +50,18 @@ class CategoryUpdate(BaseModel):
 # ==========================================
 # Product Schemas
 # ==========================================
+class ProductImageResponse(BaseModel):
+    id: uuid.UUID
+    product_id: uuid.UUID
+    image_url: str
+    is_main: bool
+    sort_order: int
 
+    model_config = ConfigDict(from_attributes=True)
 
 class ProductBase(BaseModel):
     slug: str = Field(..., max_length=255, description="Unique product slug")
     category_id: uuid.UUID = Field(..., description="Final subcategory ID")
-    image_url: str | None = Field(None, max_length=1024, description="link to image")
     is_published: bool = Field(False, description="Product publication flag")
     in_stock: bool = Field(True, description="Is product in stock")
 
@@ -76,6 +82,7 @@ class ProductResponse(ProductBase):
     created_at: datetime
     updated_at: datetime
 
+    images: list[ProductImageResponse] = []
     # localized product name and description accoridng to language in request
     title: str
     description: str

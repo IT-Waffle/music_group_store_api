@@ -1,6 +1,16 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status, Header, Query
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+    Header,
+    Query,
+    Form,
+    UploadFile,
+    File,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from typing import List
@@ -111,6 +121,45 @@ async def create_product(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Product with this slug already exists or Category ID does not exist",
         )
+
+
+@router.post(
+    "/products/{product_id}/images", response_model=schemas.ProductImageResponse
+)
+async def upload_product_image(
+    product_id: uuid.UUID,
+    file: UploadFile = File(...),
+    is_main: bool = Form(False),
+    sort_order: int = Form(0),
+    svc: service.CatalogService = Depends(get_catalog_service),
+    current_user=Depends(get_moderator),
+):
+    """Uploading images for product"""
+    return await svc.upload_image(product_id, file, is_main, sort_order)
+
+
+@router.patch(
+    "/products/{product_id}/images/{image_id}/main",
+    response_model=schemas.ProductImageResponse,
+)
+async def set_main_product_image(
+    product_id: uuid.UUID,
+    image_id: uuid.UUID,
+    svc: service.CatalogService = Depends(get_catalog_service),
+    current_user=Depends(get_moderator),
+):
+    """Makes image as a main for that product"""
+    return await svc.set_main_image(product_id, image_id)
+
+
+@router.delete("/images/{image_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_product_image(
+    image_id: uuid.UUID,
+    svc: service.CatalogService = Depends(get_catalog_service),
+    current_user=Depends(get_moderator),
+):
+    """Deletes image from disc and images path from db"""
+    await svc.delete_product_image(image_id)
 
 
 @router.get(
