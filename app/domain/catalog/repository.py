@@ -4,7 +4,7 @@ from sqlalchemy import select, cast, String, delete, update
 from sqlalchemy.orm import aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.catalog.models import Product, Category
+from app.domain.catalog.models import Product, Category, ProductImage
 from app.domain.localization.models import Translation
 
 
@@ -42,6 +42,19 @@ class CatalogRepository:
 
     async def commit(self):
         await self.session.commit()
+
+    async def add_product_image(
+        self, product_id: uuid.UUID, image_url: str, is_main: bool, sort_order: int
+    ) -> ProductImage:
+        new_image = ProductImage(
+            product_id=product_id,
+            image_url=image_url,
+            is_main=is_main,
+            sort_order=sort_order,
+        )
+        self.session.add(new_image)
+        await self.session.flush()
+        return new_image
 
     async def get_product_model(self, product_id: uuid.UUID) -> Product | None:
         """
@@ -90,13 +103,13 @@ class CatalogRepository:
                 "id": row.Product.id,
                 "slug": row.Product.slug,
                 "category_id": row.Product.category_id,
-                "image_url": row.Product.image_url,
                 "is_published": row.Product.is_published,
                 "in_stock": row.Product.in_stock,
                 "created_at": row.Product.created_at,
                 "updated_at": row.Product.updated_at,
                 "title": row.title or "",
                 "description": row.description or "",
+                "images": [img for img in row.Product.images if img.is_main],
             }
             for row in rows
         ]
@@ -145,13 +158,13 @@ class CatalogRepository:
             "id": product.id,
             "slug": product.slug,
             "category_id": product.category_id,
-            "image_url": product.image_url,
             "is_published": product.is_published,
             "in_stock": row.Product.in_stock,
             "created_at": product.created_at,
             "updated_at": product.updated_at,
             "title": row.title or "",
             "description": row.description or "",
+            "images": product.images,
         }
 
     async def create_product(
@@ -331,3 +344,44 @@ class CatalogRepository:
         await self.session.execute(stmt_cat)
 
         await self.session.commit()
+
+    async def get_image_by_id(self, image_id: uuid.UUID) -> ProductImage | None:
+        stmt = select(ProductImage).where(ProductImage.id == image_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def delete_image(self, image: ProductImage):
+        await self.session.delete(image)
+
+    async def unset_other_main_images(
+        self, product_id: uuid.UUID, exclude_image_id: uuid.UUID
+    ):
+        """Gets off is_main flag from all product images, excepting the selected one"""
+        stmt = (
+            update(ProductImage)
+            .where(ProductImage.product_id == product_id)
+            .where(ProductImage.id != exclude_image_id)
+            .values(is_main=False)
+        )
+        await self.session.execute(stmt)
+
+    async def ensure_main_image(self, product_id: uuid.UUID):
+        """Checks if there is a main image, if noone is main - makes the first as main"""
+        stmt = select(ProductImage).where(
+            ProductImage.product_id == product_id, ProductImage.is_main == True
+        )
+        has_main = (await self.session.execute(stmt)).first()
+
+        if not has_main:
+            # Taking the frist image (with lowest sort_order)
+            first_img_stmt = (
+                select(ProductImage)
+                .where(ProductImage.product_id == product_id)
+                .order_by(ProductImage.sort_order)
+                .limit(1)
+            )
+            first_img = (
+                await self.session.execute(first_img_stmt)
+            ).scalar_one_or_none()
+            if first_img:
+                first_img.is_main = True
