@@ -1,21 +1,39 @@
 services:
-  cache:
-      image: redis:8-alpine
-      container_name: music_band_store_cache
-      restart: always
-      ports:
-        - "6379:6379" 
   db:
-      image: postgres:16-alpine
-      container_name: music_band_store_db
-      restart: always
-      environment:
-        POSTGRES_USER: ${POSTGRES_USER:-admin}
-        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin_password}
-        POSTGRES_DB: ${POSTGRES_DB:-music_band_store_db}
-      volumes:
-        - postgres_data:/var/lib/postgresql/data
-      ports:
-        - "5445:5432"
+    image: postgres:16-alpine
+    container_name: music_band_store_db
+    restart: always
+    env_file: 
+      - .env
+    ports:
+      - "5445:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  cache:
+    image: redis:8-alpine
+    container_name: music_band_store_cache
+    restart: always
+    ports:
+      - "6379:6379"
+
+  api:
+    build: .
+    container_name: music_band_store_api
+    restart: always
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - cache
+    volumes:
+      - ./uploads:/app/uploads 
+    environment:
+      
+      - POSTGRES_URL=postgresql+asyncpg://postgres:postgres@db:5432/music_store
+      - REDIS_URL=redis://cache:6379
+      - SECRET_KEY=AozPy5jHleocLigQM_yJvFm2Vh8GlPgqnFTWDp4twH0 # should be changed in production
+      - ENVIRONMENT=production
+
 volumes:
   postgres_data:
