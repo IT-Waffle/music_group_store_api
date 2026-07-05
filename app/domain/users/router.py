@@ -13,7 +13,9 @@ router = APIRouter(prefix="/users", tags=["Users"])
     "/", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED
 )
 async def create_user(
-    user_data: schemas.UserCreate, db: AsyncSession = Depends(get_db)
+    user_data: schemas.UserCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(dependencies.get_admin),
 ):
     user_service = service.UserService(repository=repository.UserRepository(db))
     try:
