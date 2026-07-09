@@ -122,6 +122,7 @@ async def get_all_translations(
         None, description="Filter by ID of the specific entity"
     ),
     svc: service.LocalizationService = Depends(get_localization_service),
+    current_user=Depends(get_moderator),
 ):
     """Raw list for the admin panel. Needed for building tables and finding duplicates."""
     return await svc.get_all_translations(lang, entity_type, entity_id)

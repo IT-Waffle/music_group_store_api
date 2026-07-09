@@ -9,6 +9,12 @@ services:
       - "5445:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # Checks if DataBase is running and responding
+      test: ["CMD-SHELL", "pg_isready -U postgres -d music_store"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   cache:
     image: redis:8-alpine
@@ -16,6 +22,12 @@ services:
     restart: always
     ports:
       - "6379:6379"
+    healthcheck:
+      # Checks if Redis is running and responding to PING command
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   api:
     build: .
@@ -24,16 +36,20 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - db
-      - cache
+      db:
+        condition: service_healthy  # Waiting for PostgreSQL
+      cache:
+        condition: service_healthy  # Waiting for Redis
     volumes:
       - ./uploads:/app/uploads 
-    environment:
-      
-      - POSTGRES_URL=postgresql+asyncpg://postgres:postgres@db:5432/music_store
-      - REDIS_URL=redis://cache:6379
-      - SECRET_KEY=AozPy5jHleocLigQM_yJvFm2Vh8GlPgqnFTWDp4twH0 # should be changed in production
-      - ENVIRONMENT=production
+    env_file:
+      - .env
+    healthcheck:
+      # Checks if the FastAPI application is running and healthy
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
 volumes:
   postgres_data:

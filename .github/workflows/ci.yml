@@ -1,0 +1,70 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    #Setting up services (PostgreSQL and Redis) for testing
+    services:
+      db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: music_store_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      cache:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        enable-cache: true
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install dependencies
+      run: uv sync
+
+    - name: Run CI Pipeline (Migrations -> Seed -> Pytest)
+      env:
+        # Telling the application to use the test database and Redis instance gived before
+        POSTGRES_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/music_store_test
+        REDIS_URL: redis://localhost:6379
+        SECRET_KEY: test_secret_key_for_github_actions_only
+        ENVIRONMENT: testing
+      run: |
+        echo "🔄 Setting up migrations..."
+        uv run alembic upgrade head
+        
+        echo "🌱 Creating test admin..."
+        uv run python seed.py
+        
+        echo "🧪 Running tests..."
+        uv run pytest -v

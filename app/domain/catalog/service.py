@@ -1,11 +1,16 @@
 import os
+import io
 import uuid
 import aiofiles
+from PIL import Image
+
 from .schemas import ProductCreate, ProductUpdate, CategoryCreate, CategoryUpdate
 from .repository import CatalogRepository
 from .models import Product, Category
 from app.domain.localization.models import Translation
 from app.domain.catalog.models import ProductImage
+
+
 from fastapi import HTTPException, status, UploadFile
 
 
@@ -14,6 +19,10 @@ class CatalogService:
         self.repository = repository
 
     UPLOAD_DIR = "uploads/products"
+
+    ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
+    ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
+    MAX_FILE_SIZE = 5 * 1024 * 1024
 
     async def upload_image(
         self,
@@ -27,19 +36,46 @@ class CatalogService:
         if not product:
             raise HTTPException(status_code=404, detail="Product not found")
 
+        safe_filename = file.filename or "image.jpg"
+
+        ext = safe_filename.split(".")[-1].lower() if "." in safe_filename else ""
+        if ext not in self.ALLOWED_EXTENSIONS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid image format. Allowed: {self.ALLOWED_EXTENSIONS}",
+            )
+        if file.content_type not in self.ALLOWED_MIME_TYPES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid MIME type"
+            )
+
+        content = b""
+        chunk_size = 8192
+        bytes_read = 0
+
+        while chunk := await file.read(chunk_size):
+            bytes_read += len(chunk)
+            if bytes_read > self.MAX_FILE_SIZE:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail="File too large. Max size is 5 MB",
+                )
+            content += chunk
+
+        try:
+            image = Image.open(io.BytesIO(content))
+            image.verify()
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File is corrupted or not a valid image",
+            )
         os.makedirs(self.UPLOAD_DIR, exist_ok=True)
 
-        safe_filename = file.filename or "image.jpg"
-        ext = safe_filename.split(".")[-1] if "." in safe_filename else "jpg"
-
-        if ext.lower() not in ["jpg", "jpeg", "png", "webp"]:
-            raise HTTPException(status_code=400, detail="Invalid image format")
-
-        new_filename = f"{uuid.uuid4()}.{ext}"
+        new_filename = f"{uuid.uuid4().hex}.{ext}"
         file_path = os.path.join(self.UPLOAD_DIR, new_filename)
 
         async with aiofiles.open(file_path, "wb") as out_file:
-            content = await file.read()
             await out_file.write(content)
 
         image_url = f"/uploads/products/{new_filename}"
@@ -333,14 +369,20 @@ class CatalogService:
 
         await self.repository.commit()
 
-    async def set_main_image(self, product_id: uuid.UUID, image_id: uuid.UUID) -> ProductImage:
+    async def set_main_image(
+        self, product_id: uuid.UUID, image_id: uuid.UUID
+    ) -> ProductImage:
         image = await self.repository.get_image_by_id(image_id)
         if not image or image.product_id != product_id:
-            raise HTTPException(status_code=404, detail="Image not found for this product")
+            raise HTTPException(
+                status_code=404, detail="Image not found for this product"
+            )
 
         image.is_main = True
         # unseting any other is_main flags
-        await self.repository.unset_other_main_images(product_id, exclude_image_id=image.id)
+        await self.repository.unset_other_main_images(
+            product_id, exclude_image_id=image.id
+        )
         await self.repository.commit()
-        
+
         return image
