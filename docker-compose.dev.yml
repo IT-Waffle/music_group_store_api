@@ -1,0 +1,12 @@
+services:
+  db:
+    ports:
+      - "5445:5432"
+
+  cache:
+    ports:
+      - "6379:6379"
+
+  api:
+    volumes:
+      - ./uploads:/app/uploads

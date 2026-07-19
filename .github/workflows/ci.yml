@@ -47,12 +47,12 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: "3.12"
+        python-version: "3.14"
 
     - name: Install dependencies
       run: uv sync
 
-    - name: Run CI Pipeline (Migrations -> Seed -> Pytest)
+    - name: Run CI Pipeline (Migrations -> Pytest)
       env:
         # Telling the application to use the test database and Redis instance gived before
         POSTGRES_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/music_store_test
@@ -62,9 +62,6 @@ jobs:
       run: |
         echo "🔄 Setting up migrations..."
         uv run alembic upgrade head
-        
-        echo "🌱 Creating test admin..."
-        uv run python seed.py
         
         echo "🧪 Running tests..."
         uv run pytest -v

@@ -93,7 +93,7 @@ class CatalogRepository:
         )
 
         if only_published:
-            stmt = stmt.where(Product.is_published == True)
+            stmt = stmt.where(Product.is_published.is_(True))
 
         result = await self.session.execute(stmt)
         rows = result.all()
@@ -115,7 +115,7 @@ class CatalogRepository:
         ]
 
     async def get_product_by_id(
-        self, product_id: uuid.UUID, lang: str
+        self, product_id: uuid.UUID, lang: str, only_published: bool = True
     ) -> dict[str, Any] | None:
         t_title = aliased(Translation)
         t_desc = aliased(Translation)
@@ -143,8 +143,11 @@ class CatalogRepository:
                 & (t_desc.key == "description")
                 & (t_desc.lang == lang),
             )
-            .where(Product.id == product_id)
         )
+
+        stmt = stmt.where(Product.id == product_id)
+        if only_published:
+            stmt = stmt.where(Product.is_published.is_(True))
 
         result = await self.session.execute(stmt)
         row = result.first()
@@ -368,7 +371,7 @@ class CatalogRepository:
     async def ensure_main_image(self, product_id: uuid.UUID):
         """Checks if there is a main image, if noone is main - makes the first as main"""
         stmt = select(ProductImage).where(
-            ProductImage.product_id == product_id, ProductImage.is_main == True
+            ProductImage.product_id == product_id, ProductImage.is_main.is_(True)
         )
         has_main = (await self.session.execute(stmt)).first()
 

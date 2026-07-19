@@ -100,8 +100,12 @@ class CatalogService:
         await self.repository.commit()
         return db_image
 
-    async def get_product(self, product_id: uuid.UUID, lang: str):
-        return await self.repository.get_product_by_id(product_id, lang)
+    async def get_product(
+        self, product_id: uuid.UUID, lang: str, only_published: bool = True
+    ):
+        return await self.repository.get_product_by_id(
+            product_id, lang, only_published=only_published
+        )
 
     async def get_all_products(self, lang: str, only_published: bool = True):
         return await self.repository.get_all_products(lang, only_published)
@@ -155,7 +159,9 @@ class CatalogService:
 
         new_product_id = await self.repository.create_product(product, translations)
 
-        return await self.repository.get_product_by_id(new_product_id, lang)
+        return await self.repository.get_product_by_id(
+            new_product_id, lang, only_published=False
+        )
 
     async def update_product(
         self, product_id: uuid.UUID, data: ProductUpdate, lang: str
@@ -209,7 +215,9 @@ class CatalogService:
                 )
 
         await self.repository.commit()
-        return await self.repository.get_product_by_id(product_id, lang)
+        return await self.repository.get_product_by_id(
+            product_id, lang, only_published=False
+        )
 
     async def delete_product(self, product_id: uuid.UUID):
 
@@ -283,7 +291,10 @@ class CatalogService:
         if data.slug is not None:
             category.slug = data.slug
 
-        if data.parent_id is not None and data.parent_id != category.parent_id:
+        if (
+            "parent_id" in data.model_fields_set
+            and data.parent_id != category.parent_id
+        ):
             if data.parent_id == category_id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -291,12 +302,12 @@ class CatalogService:
                 )
 
             new_level = 0
-            if data.parent_id != uuid.UUID(int=0):
+            if data.parent_id is not None:
                 parent = await self.repository.get_category_by_id(data.parent_id)
                 if not parent:
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
-                        detail="New parent category not foud",
+                        detail="New parent category not found",
                     )
                 new_level = parent.level + 1
 

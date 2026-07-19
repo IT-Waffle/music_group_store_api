@@ -44,3 +44,40 @@ async def test_upload_image_validation(admin_client):
     # The response should be either 400 (Bad Request) or 404 (Not Found) depending on the validation logic
     # but not the 500 (server error)
     assert response.status_code in [400, 404]
+
+
+@pytest.mark.asyncio
+async def test_unpublished_product_detail_is_not_public(admin_client):
+    category = await admin_client.post(
+        "/api/v1/catalog/categories",
+        json={
+            "slug": f"private-category-{uuid.uuid4().hex[:8]}",
+            "title_en": "Private",
+            "title_lv": "Privāts",
+            "title_ru": "Приватный",
+        },
+    )
+    assert category.status_code == 201, category.text
+    product = await admin_client.post(
+        "/api/v1/catalog/products",
+        json={
+            "slug": f"private-product-{uuid.uuid4().hex[:8]}",
+            "category_id": category.json()["id"],
+            "is_published": False,
+            "title_en": "Private",
+            "title_lv": "Privāts",
+            "title_ru": "Приватный",
+            "description_en": "Private",
+            "description_lv": "Privāts",
+            "description_ru": "Приватный",
+        },
+    )
+    assert product.status_code == 201, product.text
+    product_id = product.json()["id"]
+
+    public_detail = await admin_client.get(f"/api/v1/catalog/products/{product_id}")
+    assert public_detail.status_code == 404
+    admin_detail = await admin_client.get(
+        f"/api/v1/catalog/manage/products/{product_id}"
+    )
+    assert admin_detail.status_code == 200

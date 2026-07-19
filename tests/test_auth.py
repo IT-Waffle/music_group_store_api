@@ -4,10 +4,22 @@ import pytest
 @pytest.mark.asyncio
 async def test_login_wrong_credentials(async_client):
     """Wrong credentials should return 401 Unauthorized"""
-    login_data = {"username": "admin@band.com", "password": "wrong_password"}
+    login_data = {"username": "nobody@example.test", "password": "wrong_password"}
     response = await async_client.post("/api/v1/auth/token", data=login_data)
     assert response.status_code == 401
     assert response.json()["detail"] == "Incorrect email or password"
+
+
+@pytest.mark.asyncio
+async def test_login_is_rate_limited(async_client):
+    login_data = {"username": "nobody@example.test", "password": "wrong_password"}
+    for _ in range(5):
+        response = await async_client.post("/api/v1/auth/token", data=login_data)
+        assert response.status_code == 401
+
+    response = await async_client.post("/api/v1/auth/token", data=login_data)
+    assert response.status_code == 429
+    assert response.json()["detail"]["code"] == "RATE_LIMITED"
 
 
 @pytest.mark.asyncio

@@ -82,7 +82,7 @@ class ProductResponse(ProductBase):
     created_at: datetime
     updated_at: datetime
 
-    images: list[ProductImageResponse] = []
+    images: list[ProductImageResponse] = Field(default_factory=list)
     # localized product name and description accoridng to language in request
     title: str
     description: str
@@ -92,7 +92,6 @@ class ProductResponse(ProductBase):
 class ProductUpdate(BaseModel):
     slug: str | None = Field(None, max_length=255, description="Change unique slug")
     category_id: uuid.UUID | None = Field(None, description="Change category ID")
-    image_url: str | None = Field(None, max_length=1024, description="Change image link") 
     is_published: bool | None = Field(None, description="Publish/Unpublish product")
     in_stock: bool | None = Field(None, description="Change stock status")
 
