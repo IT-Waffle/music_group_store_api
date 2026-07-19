@@ -91,13 +91,32 @@ async def get_product(
     svc: service.CatalogService = Depends(get_catalog_service),
 ):
     lang = accept_language[:2].lower()
-    product = await svc.get_product(product_id, lang)
+    product = await svc.get_product(product_id, lang, only_published=True)
 
     if not product:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Product Not Found"
         )
 
+    return product
+
+
+@router.get(
+    "/manage/products/{product_id}",
+    response_model=schemas.ProductResponse,
+)
+async def get_product_for_admin(
+    product_id: uuid.UUID,
+    accept_language: str = Header(default="en"),
+    svc: service.CatalogService = Depends(get_catalog_service),
+    current_user=Depends(get_moderator),
+):
+    lang = accept_language[:2].lower()
+    product = await svc.get_product(product_id, lang, only_published=False)
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Product Not Found"
+        )
     return product
 
 
@@ -108,11 +127,11 @@ async def get_product(
 )
 async def create_product(
     product_in: schemas.ProductCreate,
-    accept_langueage: str = Header(default="en"),
+    accept_language: str = Header(default="en"),
     svc: service.CatalogService = Depends(get_catalog_service),
     current_user=Depends(get_moderator),
 ):
-    lang = accept_langueage[:2].lower()
+    lang = accept_language[:2].lower()
 
     try:
         return await svc.create_product(product_in, lang)
@@ -167,10 +186,10 @@ async def delete_product_image(
     response_model=List[schemas.CategoryResponse],
 )
 async def get_categories(
-    accepted_language: str = Header(default="en"),
+    accept_language: str = Header(default="en"),
     svc: service.CatalogService = Depends(get_catalog_service),
 ):
-    lang = accepted_language[:2].lower()
+    lang = accept_language[:2].lower()
     return await svc.get_all_categories(lang)
 
 

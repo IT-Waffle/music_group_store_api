@@ -8,9 +8,10 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 from app.infrastructure.base import Base
-from app.domain.users.models import User
-from app.domain.catalog.models import Category, Product
-from app.domain.localization.models import Translation
+from app.domain.users.models import User  # noqa: F401
+from app.domain.catalog.models import Category, Product, ProductImage  # noqa: F401
+from app.domain.localization.models import Translation  # noqa: F401
+from app.domain.music.models import MusicAsset, MusicClip, MusicTrack  # noqa: F401
 
 # Import your models here to include them in migrations
 from app.core.config import settings

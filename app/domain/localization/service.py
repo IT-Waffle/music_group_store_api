@@ -10,7 +10,7 @@ class LocalizationService:
     def __init__(self, repository: LocalizationRepository):
         self.repository = repository
 
-    protected_entities = ["product", "category"]
+    protected_entities = ["product", "category", "music_track", "music_clip"]
 
     async def get_translation(self, translation_id: uuid.UUID) -> Translation | None:
         return await self.repository.get_translation_by_id(translation_id)
@@ -42,7 +42,7 @@ class LocalizationService:
         if translation_in.entity_type in self.protected_entities :
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Translations for products and categories must be created via the Catalog API.",
+                detail="Domain translations must be managed through their catalog or music API.",
             )
 
         translation = Translation(
