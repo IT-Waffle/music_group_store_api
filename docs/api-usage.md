@@ -75,11 +75,9 @@ curl.exe http://localhost:8000/health/live
 curl.exe http://localhost:8000/health/ready
 ```
 
-Ожидаемая миграция:
-
-```text
-9a7d3c2e1f40 (head)
-```
+Вывод `alembic current` должен оканчиваться на `(head)`. Конкретный
+revision ID миграции `add track playability` генерируется Alembic
+локально и может отличаться.
 
 ### Первый администратор
 
@@ -161,7 +159,7 @@ Refresh token отсутствует: после истечения срока �
 | `206` | возвращён диапазон audio/video |
 | `400` | неправильное действие или переход состояния |
 | `401` | токен отсутствует, неверен или истёк |
-| `403` | роли недостаточно |
+| `403` | роли недостаточно или воспроизведение трека отключено |
 | `404` | ресурс отсутствует или скрыт от публичного API |
 | `409` | конфликт данных или ресурс ещё не готов к публикации |
 | `413` | файл превышает лимит |
@@ -437,9 +435,10 @@ Bundle:
 
 ## 9. Music API
 
-Трек имеет состояния `draft`, `published`, `archived`. Клип принадлежит треку
-и имеет отдельный `is_published`. Тексты трека и клипа хранятся на `en`, `lv`,
-`ru`.
+Трек имеет состояния `draft`, `published`, `archived`. Поле `is_playable`
+независимо управляет доступом к аудио опубликованного трека. Клип
+принадлежит треку и имеет отдельный `is_published`. Тексты трека и клипа
+хранятся на `en`, `lv`, `ru`.
 
 ```mermaid
 stateDiagram-v2
@@ -475,8 +474,10 @@ stateDiagram-v2
 }
 ```
 
-Публичный трек всегда содержит `audio`, а `cover` может быть `null`. Публичный
-клип всегда содержит загруженный `video`; `poster`, `youtube_url`, `vimeo_url`
+Публичный трек всегда содержит `audio`, а `cover` может быть `null`.
+Перед отрисовкой audio-плеера frontend проверяет `is_playable`. Поле
+присутствует и в элементах публичного списка треков. Публичный клип
+всегда содержит загруженный `video`; `poster`, `youtube_url`, `vimeo_url`
 необязательны. Draft/archived и их media возвращают 404.
 
 ### Управление треками
@@ -498,6 +499,7 @@ stateDiagram-v2
 ```json
 {
   "slug": "amor-fati-one",
+  "is_playable": true,
   "sort_order": 10,
   "release_date": "2026-09-07",
   "translations": {
@@ -512,8 +514,34 @@ Slug содержит только строчные латинские букв�
 создать с неполными переводами, но публикация требует непустые `title` и
 `description` на всех трёх языках.
 
-PATCH трека принимает `slug`, `sort_order`, `release_date`, `translations`.
-Чтобы очистить `release_date`, передать `null`.
+PATCH трека принимает `slug`, `is_playable`, `sort_order`, `release_date`,
+`translations`. Чтобы очистить `release_date`, передать `null`.
+
+### Отключение воспроизведения
+
+Опубликованный трек можно оставить на витрине, но временно закрыть
+доступ к его аудио:
+
+```http
+PATCH /api/v1/music/manage/tracks/{track_id}
+Authorization: Bearer TOKEN
+Content-Type: application/json
+
+{"is_playable": false}
+```
+
+При `is_playable: false`:
+
+- трек остаётся в публичных списке и карточке;
+- `audio` и его URL остаются в JSON, сам файл не удаляется;
+- `GET` и `HEAD` публичного audio URL возвращают `403
+  TRACK_PLAYBACK_DISABLED`;
+- cover и клипы продолжают работать;
+- preview аудио по защищённому admin URL остаётся доступен.
+
+Для возобновления воспроизведения отправить `{"is_playable": true}`. По умолчанию
+новый трек создаётся с `is_playable: true`. Опубликованный трек может изменить
+только admin; для draft действуют обычные права moderator/admin.
 
 ### Audio и cover
 
@@ -595,6 +623,7 @@ video нет: его можно заменить новым POST либо уда
 
 - `TRACK_NOT_FOUND`, `CLIP_NOT_FOUND`, `ASSET_NOT_FOUND`;
 - `TRACK_SLUG_CONFLICT`;
+- `TRACK_PLAYBACK_DISABLED`;
 - `TRACK_AUDIO_REQUIRED`, `CLIP_VIDEO_REQUIRED`, `TRANSLATIONS_REQUIRED`;
 - `INVALID_STATE_TRANSITION`, `INSUFFICIENT_ROLE`;
 - `INVALID_EXTERNAL_VIDEO_URL`;
@@ -614,14 +643,18 @@ video нет: его можно заменить новым POST либо уда
 
 ### Проигрывание и Range
 
-Используйте `asset.url` из API, не собирайте media URL вручную:
+Используйте `asset.url` из API, не собирайте media URL вручную. Audio-
+плеер создавайте только при `track.is_playable === true`:
 
-```html
-<audio controls src="/api/v1/music/tracks/amor-fati-one/audio"></audio>
-<video controls poster="/api/v1/music/clips/CLIP_ID/poster">
-  <source src="/api/v1/music/clips/CLIP_ID/video" type="video/mp4" />
-</video>
+```js
+if (track.is_playable) {
+  renderAudioPlayer(new URL(track.audio.url, API_ORIGIN).toString());
+} else {
+  renderPlaybackUnavailable();
+}
 ```
+
+Для video и image аналогично используйте `video.url`, `cover.url` и `poster.url`.
 
 Audio/video поддерживают `HEAD`, `Range`, `206 Partial Content` и `416`. Браузер
 сам использует Range для перемотки.
@@ -723,7 +756,9 @@ export async function login(email, password) {
 ```
 
 При `401` frontend удаляет токен и переводит пользователя на форму входа. При
-`403` показывает отсутствие прав, при `429` учитывает заголовок `Retry-After`.
+`403` frontend сначала проверяет `detail.code`: для `TRACK_PLAYBACK_DISABLED`
+показывает недоступность прослушивания, для остальных кодов — отсутствие
+прав. При `429` учитывает заголовок `Retry-After`.
 
 ## 11. Конфигурация окружения
 
@@ -778,8 +813,8 @@ curl.exe http://localhost:8000/health/ready
 Ожидаемый результат текущей версии:
 
 ```text
-9a7d3c2e1f40 (head)
-17 passed
+<актуальный revision> (head)
+18 passed
 {"status":"ready"}
 ```
 

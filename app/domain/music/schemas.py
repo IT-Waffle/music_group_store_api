@@ -119,6 +119,7 @@ class MusicClipAdminResponse(BaseModel):
 
 class MusicTrackCreate(BaseModel):
     slug: Slug
+    is_playable: bool = True
     sort_order: int = 0
     release_date: date | None = None
     translations: TranslationsInput = Field(default_factory=TranslationsInput)
@@ -128,6 +129,7 @@ class MusicTrackCreate(BaseModel):
 
 class MusicTrackUpdate(BaseModel):
     slug: Slug | None = None
+    is_playable: bool | None = None
     sort_order: int | None = None
     release_date: date | None = None
     translations: TranslationsInput | None = None
@@ -138,6 +140,7 @@ class MusicTrackUpdate(BaseModel):
 class MusicTrackPublicResponse(BaseModel):
     id: uuid.UUID
     slug: str
+    is_playable: bool
     title: str
     description: str
     sort_order: int
@@ -153,6 +156,7 @@ class MusicTrackAdminResponse(BaseModel):
     id: uuid.UUID
     slug: str
     status: TrackStatus
+    is_playable: bool
     sort_order: int
     release_date: date | None = None
     published_at: datetime | None = None
