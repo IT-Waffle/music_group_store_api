@@ -25,7 +25,7 @@ uv run alembic upgrade head
 uv run python -m compileall app tests
 ```
 
-The current test suite contains 17 tests. Full API usage documentation is in
+The current test suite contains 18 tests. Full API usage documentation is in
 [`docs/api-usage.md`](docs/api-usage.md); the focused music frontend guide is in
 [`docs/music-api-frontend.md`](docs/music-api-frontend.md). The production
 internal-media location example is in

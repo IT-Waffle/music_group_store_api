@@ -275,3 +275,79 @@ def test_storage_rejects_path_traversal(tmp_path):
     storage = LocalMusicStorage(tmp_path)
     with pytest.raises(ValueError):
         storage.resolve("../../etc/passwd")
+
+
+@pytest.mark.asyncio
+async def test_published_track_playback_can_be_disabled(
+    admin_client, monkeypatch, tmp_path
+):
+    monkeypatch.setattr(settings, "MUSIC_MEDIA_ROOT", tmp_path / "music")
+    monkeypatch.setattr(LocalMusicStorage, "_ffprobe", fake_ffprobe)
+
+    created = await admin_client.post(
+        "/api/v1/music/manage/tracks",
+        json={
+            "slug": "playback-toggle",
+            "translations": translations("Playback"),
+        },
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["is_playable"] is True
+    track_id = created.json()["id"]
+
+    uploaded = await admin_client.post(
+        f"/api/v1/music/manage/tracks/{track_id}/audio",
+        files={
+            "file": (
+                "track.mp3",
+                b"playable-audio",
+                "audio/mpeg",
+            )
+        },
+    )
+    assert uploaded.status_code == 200, uploaded.text
+
+    published = await admin_client.post(
+        f"/api/v1/music/manage/tracks/{track_id}/publish"
+    )
+    assert published.status_code == 200, published.text
+
+    disabled = await admin_client.patch(
+        f"/api/v1/music/manage/tracks/{track_id}",
+        json={"is_playable": False},
+    )
+    assert disabled.status_code == 200, disabled.text
+    assert disabled.json()["is_playable"] is False
+
+    public_detail = await admin_client.get("/api/v1/music/tracks/playback-toggle")
+    assert public_detail.status_code == 200
+    assert public_detail.json()["is_playable"] is False
+
+    public_list = await admin_client.get("/api/v1/music/tracks")
+    assert public_list.status_code == 200
+    assert public_list.json()["items"][0]["is_playable"] is False
+
+    blocked = await admin_client.get("/api/v1/music/tracks/playback-toggle/audio")
+    assert blocked.status_code == 403
+    assert blocked.json()["detail"]["code"] == "TRACK_PLAYBACK_DISABLED"
+
+    blocked_head = await admin_client.head("/api/v1/music/tracks/playback-toggle/audio")
+    assert blocked_head.status_code == 403
+
+    admin_preview = await admin_client.get(disabled.json()["audio"]["url"])
+    assert admin_preview.status_code == 200
+    assert admin_preview.content == b"playable-audio"
+
+    enabled = await admin_client.patch(
+        f"/api/v1/music/manage/tracks/{track_id}",
+        json={"is_playable": True},
+    )
+    assert enabled.status_code == 200
+    assert enabled.json()["is_playable"] is True
+
+    ranged = await admin_client.get(
+        "/api/v1/music/tracks/playback-toggle/audio",
+        headers={"Range": "bytes=0-3"},
+    )
+    assert ranged.status_code == 206
+    assert ranged.content == b"play"

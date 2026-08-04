@@ -3,15 +3,17 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import (
-    CheckConstraint,
-    Date,
-    DateTime,
-    ForeignKey,
-    Index,
-    Integer,
-    String,
-    UniqueConstraint,
-)
+     Boolean,
+     CheckConstraint,
+     Date,
+     DateTime,
+     ForeignKey,
+     Index,
+     Integer,
+     String,
+     UniqueConstraint,
+     true,
+ )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.base import Base
@@ -43,6 +45,11 @@ class MusicTrack(Base):
     slug: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     status: Mapped[str] = mapped_column(
         String(20), default=TrackStatus.DRAFT.value, index=True
+    )
+    is_playable: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        server_default=true(),
     )
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     release_date: Mapped[date | None] = mapped_column(Date, nullable=True)

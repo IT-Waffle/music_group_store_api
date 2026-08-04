@@ -47,6 +47,7 @@ class MusicService:
         track = MusicTrack(
             slug=data.slug,
             status=TrackStatus.DRAFT.value,
+            is_playable=data.is_playable,
             sort_order=data.sort_order,
             release_date=data.release_date,
         )
@@ -80,6 +81,9 @@ class MusicService:
         if "slug" in fields:
             if data.slug is not None:
                 track.slug = data.slug
+        if "is_playable" in fields:
+            if data.is_playable is not None:
+                track.is_playable = data.is_playable
         if "sort_order" in fields:
             if data.sort_order is not None:
                 track.sort_order = data.sort_order
@@ -484,6 +488,13 @@ class MusicService:
         track = await self.repository.get_track_by_slug(slug, published_only=True)
         if not track:
             raise self._track_not_found()
+        if kind == AssetKind.AUDIO and not track.is_playable:
+            raise music_error(
+                status.HTTP_403_FORBIDDEN,
+                "TRACK_PLAYBACK_DISABLED",
+                "Playback is disabled for this track.",
+                "audio",
+            )
         asset = self._asset(track.assets, kind)
         if not asset:
             raise self._asset_not_found()
@@ -655,6 +666,7 @@ class MusicService:
             id=track.id,
             slug=track.slug,
             status=TrackStatus(track.status),
+            is_playable=track.is_playable,
             sort_order=track.sort_order,
             release_date=track.release_date,
             published_at=track.published_at,
@@ -716,6 +728,7 @@ class MusicService:
         return schemas.MusicTrackPublicResponse(
             id=track.id,
             slug=track.slug,
+            is_playable=track.is_playable,
             title=text["title"],
             description=text["description"],
             sort_order=track.sort_order,
