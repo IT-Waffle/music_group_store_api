@@ -1,6 +1,6 @@
 # Music Group Store API
 
-FastAPI backend for the Amor Fati music & art storefront.
+FastAPI backend for the music & art storefront.
 
 ## Local Docker run
 
