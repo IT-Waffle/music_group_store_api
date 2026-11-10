@@ -9,6 +9,7 @@ from app.domain.catalog.router import router as catalog_router
 from app.domain.localization.router import router as localization_router
 from app.domain.system.router import router as system_router
 from app.domain.music.router import router as music_router
+from app.domain.engagement.router import router as engagement_router
 
 os.makedirs("uploads/products", exist_ok=True)
 os.makedirs(settings.MUSIC_MEDIA_ROOT / ".tmp", exist_ok=True)
@@ -30,6 +31,7 @@ app.include_router(auth_router, prefix="/api/v1")
 app.include_router(catalog_router, prefix="/api/v1")
 app.include_router(localization_router, prefix="/api/v1")
 app.include_router(music_router, prefix="/api/v1")
+app.include_router(engagement_router, prefix="/api/v1")
 
 
 # system routes will be reachable on /health/live and /health/ready

@@ -86,6 +86,8 @@ class ProductResponse(ProductBase):
     # localized product name and description accoridng to language in request
     title: str
     description: str
+    # Non-unique views, see POST /api/v1/engagement/product/{id}/views
+    view_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
