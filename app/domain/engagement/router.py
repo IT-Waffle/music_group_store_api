@@ -1,17 +1,28 @@
 import uuid
 
-from fastapi import APIRouter, Depends, Header, Query, Request, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    Header,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from redis.asyncio import Redis
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.rate_limit import CommentRateLimiter
 from app.domain.users.dependencies import get_moderator
 from app.domain.users.models import User
 from app.infrastructure.cache import get_redis
-from app.infrastructure.session import get_db
+from app.infrastructure.email import BrevoEmailSender, get_email_sender
+from app.infrastructure.session import get_db, get_session_factory
 
 from . import schemas
 from .models import CommentStatus, ContentType
+from .notifications import notify_new_comment
 from .repository import EngagementRepository
 from .service import EngagementService, normalize_language
 
@@ -101,12 +112,23 @@ async def submit_comment(
     target_id: uuid.UUID,
     data: schemas.CommentCreate,
     request: Request,
+    background_tasks: BackgroundTasks,
     service: EngagementService = Depends(get_engagement_service),
     redis: Redis = Depends(get_redis),
+    email_sender: BrevoEmailSender | None = Depends(get_email_sender),
+    session_factory: async_sessionmaker = Depends(get_session_factory),
 ):
-    """Leave a comment. It stays hidden until a moderator approves it."""
+    """Leave a comment. It stays hidden until a moderator approves it.
+
+    The owner is emailed after the response is sent; email problems never
+    affect the stored comment.
+    """
     await CommentRateLimiter(redis).hit(request)
-    await service.submit_comment(target_type, target_id, data)
+    comment = await service.submit_comment(target_type, target_id, data)
+    if comment is not None and email_sender is not None:
+        background_tasks.add_task(
+            notify_new_comment, comment.id, session_factory, email_sender
+        )
     return schemas.CommentSubmittedResponse()
 
 

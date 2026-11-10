@@ -28,7 +28,8 @@ from app.domain.users.schemas import UserCreate  # noqa: E402
 from app.domain.users.service import UserService  # noqa: E402
 from app.infrastructure.base import Base  # noqa: E402
 from app.infrastructure.cache import get_redis  # noqa: E402
-from app.infrastructure.session import get_db  # noqa: E402
+from app.infrastructure.email import get_email_sender  # noqa: E402
+from app.infrastructure.session import get_db, get_session_factory  # noqa: E402
 from app.main import app  # noqa: E402
 
 
@@ -126,6 +127,9 @@ async def async_client(db_factory, fake_redis) -> AsyncIterator[AsyncClient]:
 
     app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[get_redis] = override_redis
+    app.dependency_overrides[get_session_factory] = lambda: db_factory
+    # Tests never talk to the real email provider.
+    app.dependency_overrides[get_email_sender] = lambda: None
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://testserver"
     ) as client:

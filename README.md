@@ -30,7 +30,7 @@ Tests build the schema with `Base.metadata.create_all` on SQLite, so they do not
 exercise migrations. `alembic check` (also run in CI against PostgreSQL) fails
 when a model change has no matching migration.
 
-The current test suite contains 32 tests. Full API usage documentation is in
+The current test suite contains 46 tests. Full API usage documentation is in
 [`docs/api-usage.md`](docs/api-usage.md); the focused music frontend guide is in
 [`docs/music-api-frontend.md`](docs/music-api-frontend.md). The production
 internal-media location example is in
