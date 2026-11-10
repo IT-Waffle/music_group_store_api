@@ -700,7 +700,9 @@ cookie-auth; текущий MVP этого не делает.
 Подробности именно frontend-интеграции music-модуля находятся в
 [`music-api-frontend.md`](music-api-frontend.md).
 
-## 10. Engagement API: просмотры
+## 10. Engagement API: просмотры и комментарии
+
+### Просмотры
 
 Счётчик просмотров есть у товаров (работ), треков и клипов. Просмотры
 **неуникальные**: каждый вызов добавляет +1, без дедупликации по IP, сессии или
@@ -754,6 +756,132 @@ function observeView(element, targetType, targetId) {
   return () => observer.disconnect(); // вызвать при размонтировании
 }
 ```
+
+### Комментарии
+
+Посетитель оставляет имя и текст без регистрации. Комментарий сразу
+сохраняется со статусом `pending` и **не виден публично**, пока модератор его
+не одобрит. Модерация — только «одобрить» или «удалить»; удалённый комментарий
+стирается из базы, статуса `rejected` нет. Редактирования и ответов нет.
+
+| Метод | Маршрут | Доступ | Назначение |
+| --- | --- | --- | --- |
+| POST | `/api/v1/engagement/{target_type}/{target_id}/comments` | публичный | оставить комментарий (уходит на модерацию) |
+| GET | `/api/v1/engagement/{target_type}/{target_id}/comments` | публичный | одобренные комментарии, новые сверху |
+| GET | `/api/v1/engagement/manage/comments` | moderator/admin | очередь модерации |
+| POST | `/api/v1/engagement/manage/comments/{comment_id}/approve` | moderator/admin | одобрить |
+| DELETE | `/api/v1/engagement/manage/comments/{comment_id}` | moderator/admin | удалить навсегда |
+
+`target_type` и `target_id` — те же, что у просмотров. Комментировать и читать
+комментарии можно только у публично видимого объекта, иначе
+`404 CONTENT_NOT_FOUND`.
+
+**Отправка:**
+
+```http
+POST /api/v1/engagement/product/550e8400-e29b-41d4-a716-446655440000/comments
+Content-Type: application/json
+
+{"author_name": "Jānis", "body": "Skaista glezna!", "website": ""}
+```
+
+Ответ `202 Accepted`:
+
+```json
+{"status": "pending", "message": "Your comment has been sent for moderation."}
+```
+
+`message` — служебный текст на английском. Посетителю frontend показывает
+своё локализованное сообщение («Ваш комментарий отправлен на модерацию»).
+
+Правила полей:
+
+| Поле | Обязательно | Ограничения |
+| --- | --- | --- |
+| `author_name` | да | 1–80 символов после очистки, одна строка |
+| `body` | да | 1–2000 символов после очистки, переносы строк сохраняются |
+| `website` | нет | ловушка для ботов, см. ниже |
+
+Backend обрезает пробелы по краям, убирает управляющие и невидимые символы
+(например, bidi-override), сводит 3+ пустых строки к одной. Пустые после
+очистки или слишком длинные значения дают 422. Лишние поля в теле запроса
+запрещены (422).
+
+Антиспам:
+
+- **Honeypot.** В форму добавляется поле `website`, скрытое от людей (CSS,
+  `tabindex="-1"`, `autocomplete="off"`, `aria-hidden="true"`). Человек его не
+  видит и не заполняет, простые боты заполняют все поля. Если `website` не
+  пустой, backend отвечает тем же `202`, но ничего не сохраняет — бот не
+  узнаёт, что его отсеяли. Поле можно и не отправлять вовсе.
+- **Лимит частоты.** Не больше `COMMENT_RATE_LIMIT_ATTEMPTS` (по умолчанию 5)
+  отправок с одного IP за `COMMENT_RATE_LIMIT_WINDOW_SECONDS` (600 с). Сверх
+  лимита — `429` с `detail.code = "RATE_LIMITED"` и заголовком `Retry-After`.
+  Если Redis недоступен, лимит временно не действует, комментарий всё равно
+  принимается.
+
+**Публичный список:**
+
+```http
+GET /api/v1/engagement/product/550e8400-e29b-41d4-a716-446655440000/comments?limit=20&offset=0
+```
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "author_name": "Jānis",
+      "body": "Skaista glezna!",
+      "created_at": "2026-11-10T22:33:50.704564Z"
+    }
+  ],
+  "total": 1,
+  "limit": 20,
+  "offset": 0
+}
+```
+
+`created_at` — дата отправки комментария в UTC (с `Z`); frontend форматирует её
+в локальное время посетителя. Сортировка — новые сверху.
+
+**Безопасность вывода.** `author_name` и `body` — недоверенный текст как есть
+(HTML не вырезается). Выводите их только как текст (`{comment.body}` в React,
+`textContent`), никогда через `innerHTML`/`dangerouslySetInnerHTML`. Для
+переносов строк — CSS `white-space: pre-line`.
+
+**Модерация.** Очередь по умолчанию показывает `pending`, новые сверху:
+
+```http
+GET /api/v1/engagement/manage/comments?status=pending&limit=20&offset=0
+Authorization: Bearer TOKEN
+Accept-Language: lv
+```
+
+Необязательные фильтры: `status=pending|approved`, `target_type`,
+`target_id`. Элемент очереди:
+
+```json
+{
+  "id": "uuid",
+  "target_type": "product",
+  "target_id": "uuid",
+  "target_title": "Glezna",
+  "author_name": "Jānis",
+  "body": "Skaista glezna!",
+  "status": "pending",
+  "created_at": "2026-11-10T22:33:50.704564Z",
+  "approved_at": null
+}
+```
+
+`target_title` — название картины, трека или клипа на языке из
+`Accept-Language` (с запасным вариантом на другом языке или slug).
+
+`POST .../approve` возвращает тот же объект со `status: "approved"` и
+`approved_at`; повторное одобрение ничего не меняет. `DELETE` отвечает `204`.
+Неизвестный `comment_id` — `404 COMMENT_NOT_FOUND`. При удалении картины,
+трека или клипа его комментарии удаляются вместе с ним.
 
 ## 11. Базовый frontend-клиент
 
@@ -833,6 +961,8 @@ export async function login(email, password) {
 | `CORS_ALLOWED_ORIGINS` | JSON-массив разрешённых frontend origin |
 | `AUTH_RATE_LIMIT_ATTEMPTS` | число неудачных попыток входа |
 | `AUTH_RATE_LIMIT_WINDOW_SECONDS` | окно блокировки |
+| `COMMENT_RATE_LIMIT_ATTEMPTS` | число комментариев с одного IP за окно (5) |
+| `COMMENT_RATE_LIMIT_WINDOW_SECONDS` | окно лимита комментариев (600) |
 | `FIRST_ADMIN_EMAIL` | email первого администратора для `seed.py` |
 | `FIRST_ADMIN_PASSWORD` | пароль первого администратора для `seed.py` |
 | `MUSIC_MEDIA_ROOT` | корень локальных музыкальных файлов |
@@ -874,7 +1004,7 @@ curl.exe http://localhost:8000/health/ready
 
 ```text
 <актуальный revision> (head)
-22 passed
+32 passed
 {"status":"ready"}
 ```
 
