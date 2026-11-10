@@ -22,8 +22,13 @@ The API is available at `http://localhost:8000`, Swagger UI at `/docs`.
 ```bash
 uv run pytest -v
 uv run alembic upgrade head
+uv run alembic check
 uv run python -m compileall app tests
 ```
+
+Tests build the schema with `Base.metadata.create_all` on SQLite, so they do not
+exercise migrations. `alembic check` (also run in CI against PostgreSQL) fails
+when a model change has no matching migration.
 
 The current test suite contains 18 tests. Full API usage documentation is in
 [`docs/api-usage.md`](docs/api-usage.md); the focused music frontend guide is in
