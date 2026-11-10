@@ -62,6 +62,9 @@ jobs:
       run: |
         echo "🔄 Setting up migrations..."
         uv run alembic upgrade head
-        
+
+        echo "🔍 Checking that models match migrations..."
+        uv run alembic check
+
         echo "🧪 Running tests..."
         uv run pytest -v
