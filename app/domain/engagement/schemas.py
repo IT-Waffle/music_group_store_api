@@ -112,6 +112,7 @@ class CommentAdminResponse(BaseModel):
     status: CommentStatus
     created_at: datetime
     approved_at: datetime | None = None
+    notified_at: datetime | None = None
 
 
 class AdminCommentListResponse(BaseModel):

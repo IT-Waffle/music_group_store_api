@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import PostgresDsn, model_validator
+from pydantic import PostgresDsn, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,6 +20,17 @@ class Settings(BaseSettings):
     # Comments: max submissions per client IP per window (anti-spam)
     COMMENT_RATE_LIMIT_ATTEMPTS: int = 5
     COMMENT_RATE_LIMIT_WINDOW_SECONDS: int = 600
+
+    # Email notification to the owner when a new comment arrives (Brevo API)
+    NOTIFICATIONS_ENABLED: bool = False
+    BREVO_API_KEY: SecretStr | None = None
+    BREVO_API_URL: str = "https://api.brevo.com/v3/smtp/email"
+    MAIL_FROM: str | None = None
+    MAIL_FROM_NAME: str = "Amor Fati"
+    COMMENT_NOTIFY_EMAIL: str | None = None
+    NOTIFICATION_TIMEOUT_SECONDS: float = 10
+    NOTIFICATION_MAX_ATTEMPTS: int = 3
+    NOTIFICATION_RETRY_BACKOFF_SECONDS: float = 2
 
     # Music media
     MUSIC_MEDIA_ROOT: Path = Path("uploads/music")
@@ -60,6 +71,27 @@ class Settings(BaseSettings):
             raise ValueError("COMMENT_RATE_LIMIT_ATTEMPTS must be positive")
         if self.COMMENT_RATE_LIMIT_WINDOW_SECONDS < 1:
             raise ValueError("COMMENT_RATE_LIMIT_WINDOW_SECONDS must be positive")
+        if self.NOTIFICATIONS_ENABLED:
+            missing = [
+                name
+                for name, value in (
+                    ("BREVO_API_KEY", self.BREVO_API_KEY and self.BREVO_API_KEY.get_secret_value()),
+                    ("MAIL_FROM", self.MAIL_FROM),
+                    ("COMMENT_NOTIFY_EMAIL", self.COMMENT_NOTIFY_EMAIL),
+                )
+                if not value
+            ]
+            if missing:
+                raise ValueError(
+                    "NOTIFICATIONS_ENABLED requires: " + ", ".join(missing)
+                )
+            for name in ("MAIL_FROM", "COMMENT_NOTIFY_EMAIL"):
+                if "@" not in getattr(self, name):
+                    raise ValueError(f"{name} must be an email address")
+        if self.NOTIFICATION_MAX_ATTEMPTS < 1:
+            raise ValueError("NOTIFICATION_MAX_ATTEMPTS must be positive")
+        if self.NOTIFICATION_TIMEOUT_SECONDS <= 0:
+            raise ValueError("NOTIFICATION_TIMEOUT_SECONDS must be positive")
         if self.MUSIC_UPLOAD_CHUNK_BYTES < 64 * 1024:
             raise ValueError("MUSIC_UPLOAD_CHUNK_BYTES must be at least 64 KiB")
         return self

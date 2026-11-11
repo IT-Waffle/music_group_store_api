@@ -12,3 +12,8 @@ async_session_factory = async_sessionmaker(
 async def get_db():
     async with async_session_factory() as session:
         yield session
+
+
+def get_session_factory() -> async_sessionmaker:
+    """Dependency for work that outlives the request (background tasks)."""
+    return async_session_factory

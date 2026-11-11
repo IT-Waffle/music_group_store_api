@@ -871,7 +871,8 @@ Accept-Language: lv
   "body": "Skaista glezna!",
   "status": "pending",
   "created_at": "2026-11-10T22:33:50.704564Z",
-  "approved_at": null
+  "approved_at": null,
+  "notified_at": "2026-11-10T22:33:51.120034Z"
 }
 ```
 
@@ -882,6 +883,35 @@ Accept-Language: lv
 `approved_at`; повторное одобрение ничего не меняет. `DELETE` отвечает `204`.
 Неизвестный `comment_id` — `404 COMMENT_NOT_FOUND`. При удалении картины,
 трека или клипа его комментарии удаляются вместе с ним.
+
+### Email-уведомление владельцу
+
+После каждого нового комментария (не после одобрения) backend отправляет одно
+письмо на `COMMENT_NOTIFY_EMAIL` через HTTP API Brevo. Для frontend ничего не
+меняется: ответ `202` приходит сразу, письмо уходит уже после ответа.
+
+- Содержание: имя автора, текст, тип и название объекта на латышском, дата.
+  Шаблон один, на латышском; весь пользовательский текст экранируется в HTML.
+  Ссылок и кнопок модерации в письме нет — одобрение только в админке.
+- Комментарий сохраняется в базе **до** отправки письма. Если Brevo недоступен,
+  письмо повторяется до `NOTIFICATION_MAX_ATTEMPTS` раз (таймауты, 429, 5xx);
+  ошибки ключа/отправителя (прочие 4xx) не повторяются. Неудача только пишется
+  в лог, комментарий остаётся в очереди модерации.
+- `notified_at` в админской очереди показывает, когда письмо принято Brevo;
+  `null` — письмо не ушло (уведомления выключены или все попытки неудачны).
+- Ловушка honeypot письмо не вызывает.
+
+Почему HTTP API, а не SMTP: DigitalOcean по умолчанию блокирует исходящие
+SMTP-порты на дроплетах, а HTTPS открыт всегда.
+
+Настройка Brevo перед включением:
+
+1. В Brevo добавить и подтвердить домен отправителя (`amorfati.lv`): записи
+   SPF/DKIM (и по желанию DMARC) в DNS (Cloudflare).
+2. Создать API key (SMTP & API → API Keys) и положить его только в `.env`
+   на сервере.
+3. Заполнить переменные и включить `NOTIFICATIONS_ENABLED=true`. Если включено,
+   а ключа, отправителя или получателя нет, приложение не стартует.
 
 ## 11. Базовый frontend-клиент
 
@@ -963,6 +993,12 @@ export async function login(email, password) {
 | `AUTH_RATE_LIMIT_WINDOW_SECONDS` | окно блокировки |
 | `COMMENT_RATE_LIMIT_ATTEMPTS` | число комментариев с одного IP за окно (5) |
 | `COMMENT_RATE_LIMIT_WINDOW_SECONDS` | окно лимита комментариев (600) |
+| `NOTIFICATIONS_ENABLED` | включить письмо владельцу о новом комментарии (`false`) |
+| `BREVO_API_KEY` | секретный API key Brevo, только в `.env` на сервере |
+| `MAIL_FROM` / `MAIL_FROM_NAME` | отправитель, домен подтверждён в Brevo |
+| `COMMENT_NOTIFY_EMAIL` | один адрес владельца для уведомлений |
+| `NOTIFICATION_TIMEOUT_SECONDS` | таймаут запроса к Brevo (10) |
+| `NOTIFICATION_MAX_ATTEMPTS` / `NOTIFICATION_RETRY_BACKOFF_SECONDS` | повторы при временных ошибках (3 / 2 с) |
 | `FIRST_ADMIN_EMAIL` | email первого администратора для `seed.py` |
 | `FIRST_ADMIN_PASSWORD` | пароль первого администратора для `seed.py` |
 | `MUSIC_MEDIA_ROOT` | корень локальных музыкальных файлов |
@@ -1004,7 +1040,7 @@ curl.exe http://localhost:8000/health/ready
 
 ```text
 <актуальный revision> (head)
-32 passed
+46 passed
 {"status":"ready"}
 ```
 

@@ -154,6 +154,7 @@ class EngagementService:
                 status=CommentStatus(c.status),
                 created_at=c.created_at,
                 approved_at=c.approved_at,
+                notified_at=c.notified_at,
             )
             for c in comments
         ]
