@@ -1,11 +1,13 @@
 import uuid
 from typing import Any
-from sqlalchemy import select, cast, String, delete, update
+from sqlalchemy import select, cast, String, delete, update, func
 from sqlalchemy.orm import aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.catalog.models import Product, Category, ProductImage
 from app.domain.localization.models import Translation
+from app.domain.engagement.models import ContentType, ViewCounter
+from app.domain.engagement.repository import delete_view_counters
 
 
 class CatalogRepository:
@@ -73,9 +75,17 @@ class CatalogRepository:
 
         stmt = (
             select(
-                Product, t_title.value.label("title"), t_desc.value.label("description")
+                Product,
+                t_title.value.label("title"),
+                t_desc.value.label("description"),
+                func.coalesce(ViewCounter.count, 0).label("view_count"),
             )
             .select_from(Product)
+            .outerjoin(
+                ViewCounter,
+                (ViewCounter.target_type == ContentType.PRODUCT.value)
+                & (ViewCounter.target_id == Product.id),
+            )
             .outerjoin(
                 t_title,
                 (t_title.entity_id == product_id_str)
@@ -110,6 +120,7 @@ class CatalogRepository:
                 "title": row.title or "",
                 "description": row.description or "",
                 "images": [img for img in row.Product.images if img.is_main],
+                "view_count": int(row.view_count),
             }
             for row in rows
         ]
@@ -124,9 +135,17 @@ class CatalogRepository:
 
         stmt = (
             select(
-                Product, t_title.value.label("title"), t_desc.value.label("description")
+                Product,
+                t_title.value.label("title"),
+                t_desc.value.label("description"),
+                func.coalesce(ViewCounter.count, 0).label("view_count"),
             )
             .select_from(Product)
+            .outerjoin(
+                ViewCounter,
+                (ViewCounter.target_type == ContentType.PRODUCT.value)
+                & (ViewCounter.target_id == Product.id),
+            )
             # connecting table for TITLE
             .outerjoin(
                 t_title,
@@ -168,6 +187,7 @@ class CatalogRepository:
             "title": row.title or "",
             "description": row.description or "",
             "images": product.images,
+            "view_count": int(row.view_count),
         }
 
     async def create_product(
@@ -197,6 +217,7 @@ class CatalogRepository:
             & (Translation.entity_id == product_id_str)
         )
         await self.session.execute(stmt_trans)
+        await delete_view_counters(self.session, ContentType.PRODUCT, [product_id])
 
         stmt_prod = delete(Product).where(Product.id == product_id)
         await self.session.execute(stmt_prod)

@@ -1,5 +1,6 @@
 import logging
 import uuid
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from urllib.parse import quote, urlsplit
 
@@ -8,6 +9,8 @@ from fastapi.responses import FileResponse, Response
 from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
+from app.domain.engagement.models import ContentType
+from app.domain.engagement.repository import fetch_view_counts
 from . import schemas
 from .models import AssetKind, MusicAsset, MusicClip, MusicTrack, TrackStatus
 from .repository import MusicRepository
@@ -237,6 +240,7 @@ class MusicService:
             )
             if response is not None:
                 items.append(response)
+        await self._apply_view_counts(tracks=items)
         return schemas.TrackListResponse(
             items=items, total=total, limit=limit, offset=offset
         )
@@ -258,6 +262,7 @@ class MusicService:
         )
         if response is None:
             raise self._track_not_found()
+        await self._apply_view_counts(tracks=[response])
         return response
 
     async def list_admin_tracks(
@@ -283,6 +288,7 @@ class MusicService:
             )
             for track in tracks
         ]
+        await self._apply_view_counts(tracks=items)
         return schemas.AdminTrackListResponse(
             items=items, total=total, limit=limit, offset=offset
         )
@@ -396,6 +402,7 @@ class MusicService:
             if (response := self._clip_public_response(clip, language, translations))
             is not None
         ]
+        await self._apply_view_counts(clips=items)
         return schemas.ClipListResponse(
             items=items, total=total, limit=limit, offset=offset
         )
@@ -410,6 +417,7 @@ class MusicService:
         response = self._clip_public_response(clip, language, translations)
         if response is None:
             raise self._clip_not_found()
+        await self._apply_view_counts(clips=[response])
         return response
 
     async def upload_track_asset(
@@ -650,11 +658,13 @@ class MusicService:
         clip_translations = await self.repository.get_translations(
             "music_clip", [clip.id for clip in track.clips]
         )
-        return self._track_admin_response_sync(
+        response = self._track_admin_response_sync(
             track,
             track_translations.get(str(track.id), {}),
             clip_translations,
         )
+        await self._apply_view_counts(tracks=[response])
+        return response
 
     def _track_admin_response_sync(
         self,
@@ -687,7 +697,35 @@ class MusicService:
         self, clip: MusicClip
     ) -> schemas.MusicClipAdminResponse:
         translations = await self.repository.get_translations("music_clip", [clip.id])
-        return self._clip_admin_response_sync(clip, translations.get(str(clip.id), {}))
+        response = self._clip_admin_response_sync(
+            clip, translations.get(str(clip.id), {})
+        )
+        await self._apply_view_counts(clips=[response])
+        return response
+
+    async def _apply_view_counts(
+        self,
+        *,
+        tracks: Sequence[
+            schemas.MusicTrackPublicResponse | schemas.MusicTrackAdminResponse
+        ] = (),
+        clips: Sequence[
+            schemas.MusicClipPublicResponse | schemas.MusicClipAdminResponse
+        ] = (),
+    ) -> None:
+        """Fill view_count on built responses (incl. nested clips), 2 queries max."""
+        all_clips = [*clips, *(clip for track in tracks for clip in track.clips)]
+        session = self.repository.session
+        track_counts = await fetch_view_counts(
+            session, ContentType.MUSIC_TRACK, (track.id for track in tracks)
+        )
+        clip_counts = await fetch_view_counts(
+            session, ContentType.MUSIC_CLIP, (clip.id for clip in all_clips)
+        )
+        for track in tracks:
+            track.view_count = track_counts.get(track.id, 0)
+        for clip in all_clips:
+            clip.view_count = clip_counts.get(clip.id, 0)
 
     def _clip_admin_response_sync(
         self, clip: MusicClip, translations: dict[str, dict[str, str]]

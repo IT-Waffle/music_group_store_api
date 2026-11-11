@@ -99,6 +99,7 @@ class MusicClipPublicResponse(BaseModel):
     poster: MusicAssetResponse | None = None
     youtube_url: str | None = None
     vimeo_url: str | None = None
+    view_count: int = 0
     created_at: datetime
     updated_at: datetime
 
@@ -113,6 +114,7 @@ class MusicClipAdminResponse(BaseModel):
     translations: TranslationsResponse
     video: MusicAssetAdminResponse | None = None
     poster: MusicAssetAdminResponse | None = None
+    view_count: int = 0
     created_at: datetime
     updated_at: datetime
 
@@ -148,6 +150,7 @@ class MusicTrackPublicResponse(BaseModel):
     audio: MusicAssetResponse
     cover: MusicAssetResponse | None = None
     clips: list[MusicClipPublicResponse] = Field(default_factory=list)
+    view_count: int = 0
     created_at: datetime
     updated_at: datetime
 
@@ -164,6 +167,7 @@ class MusicTrackAdminResponse(BaseModel):
     audio: MusicAssetAdminResponse | None = None
     cover: MusicAssetAdminResponse | None = None
     clips: list[MusicClipAdminResponse] = Field(default_factory=list)
+    view_count: int = 0
     created_at: datetime
     updated_at: datetime
 
