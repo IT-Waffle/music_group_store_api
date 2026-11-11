@@ -2,7 +2,7 @@ import uuid
 
 from .schemas import UserCreate, UserUpdate
 from .repository import UserRepository
-from app.core.security import get_password_hash, verify_password
+from app.core.security import burn_password_check, get_password_hash, verify_password
 
 
 class UserService:
@@ -24,11 +24,13 @@ class UserService:
         user = await self.repository.get_by_email(email)
 
         if not user:
+            burn_password_check(password)
+            return None
+        # Check the password before is_active so that inactive accounts do not
+        # answer faster than active ones.
+        if not verify_password(password, user.hashed_password):
             return None
         if not user.is_active:
-            return None
-
-        if not verify_password(password, user.hashed_password):
             return None
 
         return user

@@ -14,6 +14,17 @@ from . import schemas, service, repository
 
 router = APIRouter(prefix="/localization", tags=["Localization"])
 
+# Texts of publishable content (titles/descriptions of products, tracks and
+# clips) are delivered localized by their own endpoints, which respect
+# publication. The public localization endpoints must not expose them,
+# otherwise drafts and archived items could be read here.
+PRIVATE_ENTITY_TYPES = {"product", "music_track", "music_clip"}
+
+
+def ensure_public_entity_type(entity_type: str) -> None:
+    if entity_type in PRIVATE_ENTITY_TYPES:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+
 
 # --- (Dependency Injection) ---
 def get_localization_service(
@@ -47,6 +58,7 @@ async def get_flat_translations(
     Example: GET /localization/flat/ui/header -> {"login": "Login", "logout": "Logout"}
     Example: GET /localization/flat/category/uuid-1 -> {"title": "Vinyl Records"}
     """
+    ensure_public_entity_type(entity_type)
     lang = accept_language[:2].lower()
     cache_key = f"loc:flat:{lang}:{entity_type}:{entity_id}"
 
@@ -61,8 +73,10 @@ async def get_flat_translations(
     )
     result = {t.key: t.value for t in translations}
 
-    # saving to cache for 24h
-    await redis.set(cache_key, json.dumps(result), ex=86400)
+    # Cache for 24h, but only real data: caching empty answers would let
+    # anyone fill Redis with keys for made-up ids.
+    if result:
+        await redis.set(cache_key, json.dumps(result), ex=86400)
     return result
 
 
@@ -86,6 +100,7 @@ async def get_translations_bundle(
        "footer": { "copyright": "All rights reserved" }
     }
     """
+    ensure_public_entity_type(entity_type)
     lang = accept_language[:2].lower()
     cache_key = f"loc:bundle:{lang}:{entity_type}"
 
@@ -102,8 +117,9 @@ async def get_translations_bundle(
             bundle[t.entity_id] = {}
         bundle[t.entity_id][t.key] = t.value
 
-    # saving to the cache
-    await redis.set(cache_key, json.dumps(bundle), ex=86400)
+    # saving to the cache (non-empty only, see flat endpoint)
+    if bundle:
+        await redis.set(cache_key, json.dumps(bundle), ex=86400)
     return bundle
 
 
@@ -134,6 +150,7 @@ async def get_all_translations(
 async def get_translation(
     translation_id: uuid.UUID,
     svc: service.LocalizationService = Depends(get_localization_service),
+    current_user=Depends(get_moderator),
 ):
     translation = await svc.get_translation(translation_id)
     if not translation:

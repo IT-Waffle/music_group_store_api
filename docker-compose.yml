@@ -30,7 +30,10 @@ services:
     container_name: music_band_store_api
     restart: always
     ports:
-      - "8000:8000"
+      # Localhost only: the public entry point is Nginx/Cloudflare. Docker
+      # bypasses ufw for published ports, so 0.0.0.0 would expose the API
+      # (and /docs) directly on the server IP.
+      - "127.0.0.1:8000:8000"
     depends_on:
       db:
         condition: service_healthy  # Waiting for PostgreSQL

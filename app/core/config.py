@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     CORS_ALLOWED_ORIGINS: list[str] = []
+    # Swagger/ReDoc/OpenAPI. None = enabled everywhere except production.
+    API_DOCS_ENABLED: bool | None = None
+    # Max body for non-upload requests (JSON, forms). Upload routes have their
+    # own limits from the MUSIC_*_MAX_BYTES settings.
+    MAX_REQUEST_BODY_BYTES: int = 1024 * 1024
     AUTH_RATE_LIMIT_ATTEMPTS: int = 5
     AUTH_RATE_LIMIT_WINDOW_SECONDS: int = 300
 
@@ -92,9 +97,18 @@ class Settings(BaseSettings):
             raise ValueError("NOTIFICATION_MAX_ATTEMPTS must be positive")
         if self.NOTIFICATION_TIMEOUT_SECONDS <= 0:
             raise ValueError("NOTIFICATION_TIMEOUT_SECONDS must be positive")
+        if self.MAX_REQUEST_BODY_BYTES < 1024:
+            raise ValueError("MAX_REQUEST_BODY_BYTES must be at least 1 KiB")
         if self.MUSIC_UPLOAD_CHUNK_BYTES < 64 * 1024:
             raise ValueError("MUSIC_UPLOAD_CHUNK_BYTES must be at least 64 KiB")
         return self
+
+
+    @property
+    def api_docs_enabled(self) -> bool:
+        if self.API_DOCS_ENABLED is not None:
+            return self.API_DOCS_ENABLED
+        return self.ENVIRONMENT.lower() != "production"
 
 
 settings = Settings()  # type: ignore[call-arg] Loaded from .env file

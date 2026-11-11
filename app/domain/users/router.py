@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.infrastructure.session import get_db
 from . import schemas, service, repository, models, dependencies
@@ -34,8 +34,8 @@ async def read_users_me(
 
 @router.get("/", response_model=list[schemas.UserResponse])
 async def read_users(
-    limit: int = 100,
-    offset: int = 0,
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
     current_user: models.User = Depends(dependencies.get_admin),
     db: AsyncSession = Depends(get_db),
 ):
