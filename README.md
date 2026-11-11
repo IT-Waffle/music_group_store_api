@@ -35,3 +35,8 @@ The current test suite contains 57 tests. Full API usage documentation is in
 [`docs/music-api-frontend.md`](docs/music-api-frontend.md). The production
 internal-media location example is in
 [`deploy/nginx.music.conf.example`](deploy/nginx.music.conf.example).
+
+Release docs: [`docs/deploy-checklist.md`](docs/deploy-checklist.md) (production
+rollout and acceptance checks) and
+[`docs/frontend-handoff.md`](docs/frontend-handoff.md) (what the frontend has to
+implement for views, comments and the latest API changes).
