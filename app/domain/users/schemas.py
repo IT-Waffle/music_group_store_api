@@ -5,7 +5,8 @@ from .models import UserRole
 
 
 class UserBase(BaseModel):
-    email: EmailStr
+    # Column is VARCHAR(50); longer values would fail in the DB with a 500.
+    email: EmailStr = Field(max_length=50)
     role: UserRole
     is_active: bool = True
 
@@ -15,7 +16,7 @@ class UserCreate(UserBase):
 
 
 class UserUpdate(BaseModel):
-    email: EmailStr | None = None
+    email: EmailStr | None = Field(default=None, max_length=50)
     role: UserRole | None = None
     is_active: bool | None = None
     password: str | None = Field(default=None, min_length=8)

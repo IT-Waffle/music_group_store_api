@@ -17,11 +17,11 @@ http://localhost:8000
 
 | Адрес | Назначение |
 | --- | --- |
-| `/docs` | Swagger UI: просмотр и ручной вызов маршрутов |
+| `/docs` | Swagger UI: просмотр и ручной вызов маршрутов (в `ENVIRONMENT=production` выключено, см. `API_DOCS_ENABLED`) |
 | `/redoc` | ReDoc |
 | `/openapi.json` | OpenAPI-схема для генерации клиента и типов |
 | `/health/live` | процесс API запущен |
-| `/health/ready` | API видит PostgreSQL и Redis |
+| `/health/ready` | API видит PostgreSQL и Redis (без деталей ошибок) |
 
 Все бизнес-маршруты начинаются с `/api/v1`. JSON-запросы отправляются с
 `Content-Type: application/json`. Загрузки используют `multipart/form-data`.
@@ -162,10 +162,10 @@ Refresh token отсутствует: после истечения срока �
 | `403` | роли недостаточно или воспроизведение трека отключено |
 | `404` | ресурс отсутствует или скрыт от публичного API |
 | `409` | конфликт данных или ресурс ещё не готов к публикации |
-| `413` | файл превышает лимит |
+| `413` | файл или тело запроса превышает лимит (`REQUEST_TOO_LARGE`, `MEDIA_TOO_LARGE`) |
 | `415` | неподдерживаемый формат/MIME/codec |
 | `422` | ошибка схемы запроса или содержимого файла |
-| `429` | превышен лимит попыток входа |
+| `429` | превышен лимит попыток входа или отправки комментариев |
 | `503` | PostgreSQL или Redis не готовы |
 
 Music API возвращает контролируемые ошибки в едином формате:
@@ -183,6 +183,15 @@ Music API возвращает контролируемые ошибки в ед
 Frontend должен принимать решения по `detail.code`, а `message` использовать
 как fallback-текст. Ошибки валидации FastAPI имеют стандартный массив
 `detail[]` с `loc`, `msg` и `type`.
+
+Лимиты тела запроса (проверяются до чтения тела):
+
+- обычные запросы (JSON, формы) — до `MAX_REQUEST_BODY_BYTES` (1 МБ), иначе
+  `413 REQUEST_TOO_LARGE`;
+- загрузки файлов — по лимитам из раздела «Форматы и лимиты»; анонимный или
+  с невалидным/просроченным токеном запрос на загрузку получает `401` сразу,
+  ещё до передачи файла. Поэтому перед большой загрузкой стоит убедиться, что
+  токен не истекает в ближайшие минуты (срок жизни — 30 минут).
 
 ## 5. System API
 
@@ -373,13 +382,18 @@ Localization API предназначен прежде всего для UI-те
 сущностей `product`, `category`, `music_track`, `music_clip` нельзя менять через
 общий CRUD — они управляются через Catalog/Music API.
 
+Публичные `flat` и `bundle` **не отдают** тексты `product`, `music_track`,
+`music_clip` (ответ `404`): эти тексты приходят уже локализованными в ответах
+Catalog/Music API, которые учитывают публикацию. Иначе через bundle можно было
+прочитать названия и описания черновиков. UI-тексты (`ui`) и категории
+доступны как раньше.
+
 ### Публичное чтение
 
 | Метод | Маршрут | Результат |
 | --- | --- | --- |
 | GET | `/api/v1/localization/flat/{entity_type}/{entity_id}` | плоский объект ключ-значение |
 | GET | `/api/v1/localization/bundle/{entity_type}` | все entity данного типа, сгруппированные по ID |
-| GET | `/api/v1/localization/translations/{translation_id}` | одна запись перевода |
 
 ```http
 GET /api/v1/localization/flat/ui/header
@@ -402,12 +416,13 @@ Bundle:
 }
 ```
 
-Результаты flat/bundle кэшируются в Redis на 24 часа.
+Результаты flat/bundle кэшируются в Redis на 24 часа (только непустые ответы).
 
 ### Управление UI-переводами
 
 | Метод | Маршрут | Доступ | Назначение |
 | --- | --- | --- | --- |
+| GET | `/api/v1/localization/translations/{translation_id}` | moderator/admin | одна запись перевода |
 | GET | `/api/v1/localization/translations` | moderator/admin | список с фильтрами `lang`, `entity_type`, `entity_id` |
 | POST | `/api/v1/localization/translations` | moderator/admin | создать |
 | PATCH | `/api/v1/localization/translations/{translation_id}` | moderator/admin | изменить value |
@@ -993,6 +1008,9 @@ export async function login(email, password) {
 | `AUTH_RATE_LIMIT_WINDOW_SECONDS` | окно блокировки |
 | `COMMENT_RATE_LIMIT_ATTEMPTS` | число комментариев с одного IP за окно (5) |
 | `COMMENT_RATE_LIMIT_WINDOW_SECONDS` | окно лимита комментариев (600) |
+| `API_DOCS_ENABLED` | Swagger/ReDoc/OpenAPI; пусто = везде, кроме production |
+| `MAX_REQUEST_BODY_BYTES` | лимит тела не-загрузочных запросов (1 МБ) |
+| `FORWARDED_ALLOW_IPS` | (uvicorn) адрес Nginx, которому доверяется `X-Forwarded-For` |
 | `NOTIFICATIONS_ENABLED` | включить письмо владельцу о новом комментарии (`false`) |
 | `BREVO_API_KEY` | секретный API key Brevo, только в `.env` на сервере |
 | `MAIL_FROM` / `MAIL_FROM_NAME` | отправитель, домен подтверждён в Brevo |
@@ -1040,7 +1058,7 @@ curl.exe http://localhost:8000/health/ready
 
 ```text
 <актуальный revision> (head)
-46 passed
+57 passed
 {"status":"ready"}
 ```
 

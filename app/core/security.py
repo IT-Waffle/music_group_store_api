@@ -18,6 +18,15 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return password_hash.verify(plain_password, hashed_password)
 
 
+# Hash of a random throwaway password, used to spend the same time on an
+# unknown email as on a wrong password (prevents email enumeration by timing).
+_DUMMY_PASSWORD_HASH = password_hash.hash("timing-equalizer-not-a-real-password")
+
+
+def burn_password_check(plain_password: str) -> None:
+    password_hash.verify(plain_password, _DUMMY_PASSWORD_HASH)
+
+
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
 

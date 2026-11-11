@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
@@ -7,6 +9,7 @@ from app.infrastructure.session import get_db
 from app.infrastructure.cache import get_redis
 
 router = APIRouter(prefix="/health", tags=["System"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/live", status_code=status.HTTP_200_OK)
@@ -25,14 +28,17 @@ async def health_ready(
     # Checking Postgres
     try:
         await db.execute(text("SELECT 1"))
-    except Exception as e:
-        errors["database"] = str(e)
+    except Exception:
+        # Details go to the log only: this endpoint is public.
+        logger.exception("Readiness check: database unavailable")
+        errors["database"] = "unavailable"
 
     # Checking Redis
     try:
         await redis_cl.ping()
-    except Exception as e:
-        errors["redis"] = str(e)
+    except Exception:
+        logger.exception("Readiness check: redis unavailable")
+        errors["redis"] = "unavailable"
 
     if errors:
         raise HTTPException(
