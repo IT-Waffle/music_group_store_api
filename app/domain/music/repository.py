@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.domain.engagement.models import ContentType
-from app.domain.engagement.repository import delete_view_counters
+from app.domain.engagement.repository import delete_engagement_data
 from app.domain.localization.models import Translation
 
 from .models import AssetKind, MusicAsset, MusicClip, MusicTrack, TrackStatus
@@ -226,8 +226,8 @@ class MusicRepository:
                     Translation.entity_id.in_(clip_ids),
                 )
             )
-        await delete_view_counters(self.session, ContentType.MUSIC_TRACK, [track.id])
-        await delete_view_counters(
+        await delete_engagement_data(self.session, ContentType.MUSIC_TRACK, [track.id])
+        await delete_engagement_data(
             self.session, ContentType.MUSIC_CLIP, [clip.id for clip in track.clips]
         )
         await self.session.delete(track)
@@ -239,7 +239,7 @@ class MusicRepository:
                 Translation.entity_id == str(clip.id),
             )
         )
-        await delete_view_counters(self.session, ContentType.MUSIC_CLIP, [clip.id])
+        await delete_engagement_data(self.session, ContentType.MUSIC_CLIP, [clip.id])
         await self.session.delete(clip)
 
     async def get_translations(

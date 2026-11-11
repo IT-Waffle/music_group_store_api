@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     AUTH_RATE_LIMIT_ATTEMPTS: int = 5
     AUTH_RATE_LIMIT_WINDOW_SECONDS: int = 300
 
+    # Comments: max submissions per client IP per window (anti-spam)
+    COMMENT_RATE_LIMIT_ATTEMPTS: int = 5
+    COMMENT_RATE_LIMIT_WINDOW_SECONDS: int = 600
+
     # Music media
     MUSIC_MEDIA_ROOT: Path = Path("uploads/music")
     MUSIC_MEDIA_BASE_URL: str = "/api/v1/music"
@@ -52,6 +56,10 @@ class Settings(BaseSettings):
             raise ValueError("AUTH_RATE_LIMIT_ATTEMPTS must be positive")
         if self.AUTH_RATE_LIMIT_WINDOW_SECONDS < 1:
             raise ValueError("AUTH_RATE_LIMIT_WINDOW_SECONDS must be positive")
+        if self.COMMENT_RATE_LIMIT_ATTEMPTS < 1:
+            raise ValueError("COMMENT_RATE_LIMIT_ATTEMPTS must be positive")
+        if self.COMMENT_RATE_LIMIT_WINDOW_SECONDS < 1:
+            raise ValueError("COMMENT_RATE_LIMIT_WINDOW_SECONDS must be positive")
         if self.MUSIC_UPLOAD_CHUNK_BYTES < 64 * 1024:
             raise ValueError("MUSIC_UPLOAD_CHUNK_BYTES must be at least 64 KiB")
         return self

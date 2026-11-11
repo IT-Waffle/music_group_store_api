@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.catalog.models import Product, Category, ProductImage
 from app.domain.localization.models import Translation
 from app.domain.engagement.models import ContentType, ViewCounter
-from app.domain.engagement.repository import delete_view_counters
+from app.domain.engagement.repository import delete_engagement_data
 
 
 class CatalogRepository:
@@ -217,7 +217,7 @@ class CatalogRepository:
             & (Translation.entity_id == product_id_str)
         )
         await self.session.execute(stmt_trans)
-        await delete_view_counters(self.session, ContentType.PRODUCT, [product_id])
+        await delete_engagement_data(self.session, ContentType.PRODUCT, [product_id])
 
         stmt_prod = delete(Product).where(Product.id == product_id)
         await self.session.execute(stmt_prod)

@@ -21,7 +21,7 @@ os.environ.setdefault("ENVIRONMENT", "testing")
 from app.domain.catalog.models import Category, Product, ProductImage  # noqa: E402,F401
 from app.domain.localization.models import Translation  # noqa: E402,F401
 from app.domain.music.models import MusicAsset, MusicClip, MusicTrack  # noqa: E402,F401
-from app.domain.engagement.models import ViewCounter  # noqa: E402,F401
+from app.domain.engagement.models import Comment, ViewCounter  # noqa: E402,F401
 from app.domain.users.models import UserRole  # noqa: E402
 from app.domain.users.repository import UserRepository  # noqa: E402
 from app.domain.users.schemas import UserCreate  # noqa: E402
