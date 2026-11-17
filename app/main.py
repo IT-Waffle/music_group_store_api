@@ -10,7 +10,7 @@ from app.domain.users.router import router as user_router
 from app.domain.users.auth_router import router as auth_router
 from app.domain.catalog.router import router as catalog_router
 from app.domain.localization.router import router as localization_router
-from app.domain.system.router import router as system_router
+from app.domain.system.router import metrics_router, router as system_router
 from app.domain.music.router import router as music_router
 from app.domain.engagement.router import router as engagement_router
 
@@ -74,6 +74,7 @@ app.include_router(engagement_router, prefix="/api/v1")
 
 # system routes will be reachable on /health/live and /health/ready
 app.include_router(system_router)
+app.include_router(metrics_router)
 
 app.mount(
     "/uploads/products",

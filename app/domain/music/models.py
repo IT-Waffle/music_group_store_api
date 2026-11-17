@@ -53,6 +53,9 @@ class MusicTrack(Base):
     )
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     release_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    playback_starts_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     published_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
