@@ -21,6 +21,12 @@ logger = logging.getLogger(__name__)
 SUPPORTED_LANGUAGES = ("en", "lv", "ru")
 
 
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 def music_error(
     status_code: int, code: str, message: str, field: str | None = None
 ) -> HTTPException:
@@ -53,6 +59,7 @@ class MusicService:
             is_playable=data.is_playable,
             sort_order=data.sort_order,
             release_date=data.release_date,
+            playback_starts_at=data.playback_starts_at,
         )
         try:
             await self.repository.create_track(track)
@@ -92,6 +99,8 @@ class MusicService:
                 track.sort_order = data.sort_order
         if "release_date" in fields:
             track.release_date = data.release_date
+        if "playback_starts_at" in fields:
+            track.playback_starts_at = data.playback_starts_at
         self._touch(track)
         try:
             if data.translations is not None:
@@ -496,7 +505,7 @@ class MusicService:
         track = await self.repository.get_track_by_slug(slug, published_only=True)
         if not track:
             raise self._track_not_found()
-        if kind == AssetKind.AUDIO and not track.is_playable:
+        if kind == AssetKind.AUDIO and not self._track_is_publicly_playable(track):
             raise music_error(
                 status.HTTP_403_FORBIDDEN,
                 "TRACK_PLAYBACK_DISABLED",
@@ -600,6 +609,14 @@ class MusicService:
         entity.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
     @staticmethod
+    def _track_is_publicly_playable(track: MusicTrack) -> bool:
+        if not track.is_playable:
+            return False
+        if track.playback_starts_at is None:
+            return True
+        return _as_utc(track.playback_starts_at) <= datetime.now(timezone.utc)
+
+    @staticmethod
     def _translation_values(
         translations: schemas.TranslationsInput,
     ) -> dict[str, dict[str, str | None]]:
@@ -679,6 +696,7 @@ class MusicService:
             is_playable=track.is_playable,
             sort_order=track.sort_order,
             release_date=track.release_date,
+            playback_starts_at=track.playback_starts_at,
             published_at=track.published_at,
             translations=self._translations_response(track_translations),
             audio=self._optional_admin_asset(track.assets, AssetKind.AUDIO),
@@ -766,11 +784,12 @@ class MusicService:
         return schemas.MusicTrackPublicResponse(
             id=track.id,
             slug=track.slug,
-            is_playable=track.is_playable,
+            is_playable=self._track_is_publicly_playable(track),
             title=text["title"],
             description=text["description"],
             sort_order=track.sort_order,
             release_date=track.release_date,
+            playback_starts_at=track.playback_starts_at,
             audio=self._asset_response(
                 audio,
                 f"{settings.MUSIC_MEDIA_BASE_URL.rstrip('/')}/tracks/{track.slug}/audio",

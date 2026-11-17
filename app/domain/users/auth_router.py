@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +15,7 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 @router.post("/token", response_model=schemas.Token)
 async def login_for_access_token(
     request: Request,
+    response: Response,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
@@ -34,5 +35,11 @@ async def login_for_access_token(
         )
     await limiter.reset(rate_limit_key)
     access_token = security.create_access_token(data={"sub": str(user.id)})
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
 
-    return schemas.Token(access_token=access_token, token_type="bearer")
+    # OAuth2 names this public token-type value "bearer"; it is not a credential.
+    return schemas.Token(
+        access_token=access_token,
+        token_type="bearer",  # nosec B106
+    )

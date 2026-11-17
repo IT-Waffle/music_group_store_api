@@ -1,5 +1,6 @@
 import io
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from PIL import Image
@@ -351,3 +352,53 @@ async def test_published_track_playback_can_be_disabled(
     )
     assert ranged.status_code == 206
     assert ranged.content == b"play"
+
+
+@pytest.mark.asyncio
+async def test_published_track_can_be_scheduled_for_future_playback(
+    admin_client, monkeypatch, tmp_path
+):
+    monkeypatch.setattr(settings, "MUSIC_MEDIA_ROOT", tmp_path / "music")
+    monkeypatch.setattr(LocalMusicStorage, "_ffprobe", fake_ffprobe)
+
+    future_unlock = datetime.now(timezone.utc) + timedelta(days=7)
+    past_unlock = datetime.now(timezone.utc) - timedelta(minutes=5)
+    created = await admin_client.post(
+        "/api/v1/music/manage/tracks",
+        json={
+            "slug": "scheduled-playback",
+            "is_playable": True,
+            "playback_starts_at": future_unlock.isoformat(),
+            "translations": translations("Scheduled"),
+        },
+    )
+    assert created.status_code == 201, created.text
+    track_id = created.json()["id"]
+
+    uploaded = await admin_client.post(
+        f"/api/v1/music/manage/tracks/{track_id}/audio",
+        files={"file": ("track.mp3", b"scheduled-audio", "audio/mpeg")},
+    )
+    assert uploaded.status_code == 200, uploaded.text
+    published = await admin_client.post(
+        f"/api/v1/music/manage/tracks/{track_id}/publish"
+    )
+    assert published.status_code == 200, published.text
+
+    public_list = await admin_client.get("/api/v1/music/tracks")
+    assert public_list.status_code == 200, public_list.text
+    assert public_list.json()["items"][0]["is_playable"] is False
+    blocked = await admin_client.get("/api/v1/music/tracks/scheduled-playback/audio")
+    assert blocked.status_code == 403
+
+    unlocked = await admin_client.patch(
+        f"/api/v1/music/manage/tracks/{track_id}",
+        json={"playback_starts_at": past_unlock.isoformat()},
+    )
+    assert unlocked.status_code == 200, unlocked.text
+    playable = await admin_client.get(
+        "/api/v1/music/tracks/scheduled-playback/audio",
+        headers={"Range": "bytes=0-8"},
+    )
+    assert playable.status_code == 206
+    assert playable.content == b"scheduled"

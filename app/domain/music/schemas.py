@@ -124,6 +124,7 @@ class MusicTrackCreate(BaseModel):
     is_playable: bool = True
     sort_order: int = 0
     release_date: date | None = None
+    playback_starts_at: datetime | None = None
     translations: TranslationsInput = Field(default_factory=TranslationsInput)
 
     model_config = ConfigDict(extra="forbid")
@@ -134,6 +135,7 @@ class MusicTrackUpdate(BaseModel):
     is_playable: bool | None = None
     sort_order: int | None = None
     release_date: date | None = None
+    playback_starts_at: datetime | None = None
     translations: TranslationsInput | None = None
 
     model_config = ConfigDict(extra="forbid")
@@ -147,6 +149,7 @@ class MusicTrackPublicResponse(BaseModel):
     description: str
     sort_order: int
     release_date: date | None = None
+    playback_starts_at: datetime | None = None
     audio: MusicAssetResponse
     cover: MusicAssetResponse | None = None
     clips: list[MusicClipPublicResponse] = Field(default_factory=list)
@@ -162,6 +165,7 @@ class MusicTrackAdminResponse(BaseModel):
     is_playable: bool
     sort_order: int
     release_date: date | None = None
+    playback_starts_at: datetime | None = None
     published_at: datetime | None = None
     translations: TranslationsResponse
     audio: MusicAssetAdminResponse | None = None

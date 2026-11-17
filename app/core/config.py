@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 from pydantic import PostgresDsn, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -11,7 +12,7 @@ class Settings(BaseSettings):
 
     # Authentication
     SECRET_KEY: str
-    ALGORITHM: str = "HS256"
+    ALGORITHM: Literal["HS256"] = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     CORS_ALLOWED_ORIGINS: list[str] = []
     # Swagger/ReDoc/OpenAPI. None = enabled everywhere except production.
@@ -51,6 +52,9 @@ class Settings(BaseSettings):
     # has checked publication/authorization.
     MEDIA_USE_X_ACCEL_REDIRECT: bool = False
     MEDIA_X_ACCEL_PREFIX: str = "/_protected_music_media"
+
+    # Read-only Linux procfs used for aggregate host monitoring.
+    HOST_PROC_ROOT: Path = Path("/proc")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", env_ignore_empty=True)
 
